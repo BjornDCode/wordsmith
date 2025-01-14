@@ -7,6 +7,8 @@ fn main() {
                 context.new_view(|_cx| Wordsmith::new())
             })
             .unwrap();
+
+        context.activate(true);
     });
 }
 
