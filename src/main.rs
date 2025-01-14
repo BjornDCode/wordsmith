@@ -21,6 +21,10 @@ const COLOR_GRAY_800: u32 = 0x1f2937;
 const COLOR_GRAY_900: u32 = 0x111827;
 const COLOR_GRAY_950: u32 = 0x030712;
 
+const COLOR_BLUE_LIGHT: u32 = 0xe0f2fe;
+const COLOR_BLUE_MEDIUM: u32 = 0x7dd3fc;
+const COLOR_BLUE_DARK: u32 = 0x0ea5e9;
+
 actions!(app, [Quit, ToggleSidebar]);
 
 fn main() {
@@ -95,6 +99,7 @@ impl AssetSource for Assets {
 struct Wordsmith {
     focus_handle: FocusHandle,
     show_sidebar: bool,
+    mode: Mode,
 }
 
 impl Wordsmith {
@@ -102,6 +107,7 @@ impl Wordsmith {
         Wordsmith {
             focus_handle,
             show_sidebar: true,
+            mode: Mode::Write,
         }
     }
 
@@ -121,7 +127,7 @@ impl FocusableView for Wordsmith {
 impl Render for Wordsmith {
     fn render(&mut self, context: &mut gpui::ViewContext<Self>) -> impl gpui::IntoElement {
         let children = if self.show_sidebar {
-            vec![main_content(), sidebar()]
+            vec![main_content(), sidebar(&self.mode)]
         } else {
             vec![main_content()]
         };
@@ -139,50 +145,68 @@ impl Render for Wordsmith {
     }
 }
 
+#[derive(PartialEq, Eq)]
+enum Mode {
+    Outline,
+    Write,
+    Edit,
+}
+
 fn main_content() -> gpui::Div {
     div().flex_1().child("Main")
 }
 
-fn sidebar() -> gpui::Div {
+fn sidebar(mode: &Mode) -> gpui::Div {
     div()
         .w(rems(15.))
         .border_l_1()
         .border_color(rgb(COLOR_GRAY_100))
         .p(rems(1.))
-        .children(vec![mode_selector()])
+        .children(vec![mode_selector(mode)])
 }
 
-fn mode_selector() -> gpui::Div {
+fn mode_selector(mode: &Mode) -> gpui::Div {
     div().flex().flex_row().gap_2().children(vec![
-        radio_button("Outline", "icons/outline.svg"),
-        radio_button("Write", "icons/write.svg"),
-        radio_button("Edit", "icons/edit.svg"),
+        radio_button("Outline", "icons/outline.svg", mode == &Mode::Outline),
+        radio_button("Write", "icons/write.svg", mode == &Mode::Write),
+        radio_button("Edit", "icons/edit.svg", mode == &Mode::Edit),
     ])
 }
 
-fn radio_button(label: &'static str, icon: &'static str) -> gpui::Div {
+fn radio_button(label: &'static str, icon: &'static str, active: bool) -> gpui::Div {
     div().flex().flex_1().flex_col().gap_1().children(vec![
         div()
             .flex()
             .justify_center()
-            .bg(rgb(COLOR_GRAY_100))
             .py_1()
             .border_1()
-            .border_color(rgb(COLOR_GRAY_200))
-            .rounded(px(3.))
-            .hover(|this| this.bg(rgb(COLOR_GRAY_200)))
+            .when(active, |this| {
+                this.border_color(rgb(COLOR_BLUE_MEDIUM))
+                    .bg(rgb(COLOR_BLUE_LIGHT))
+                    .group("active-button")
+            })
+            .when(!active, |this| {
+                this.border_color(rgb(COLOR_GRAY_200))
+                    .bg(rgb(COLOR_GRAY_100))
+                    .hover(|this| this.bg(rgb(COLOR_GRAY_200)))
+            })
             .group("button")
+            .rounded(px(3.))
             .child(
                 svg()
                     .path(icon)
                     .size_6()
-                    .text_color(rgb(COLOR_GRAY_500))
-                    .group_hover("button", |this| this.text_color(rgb(COLOR_GRAY_600))),
+                    .when(active, |this| this.text_color(rgb(COLOR_BLUE_DARK)))
+                    .when(!active, |this| {
+                        this.text_color(rgb(COLOR_GRAY_500))
+                            .group_hover("button", |this| this.text_color(rgb(COLOR_GRAY_600)))
+                    }),
             ),
         div()
             .flex()
             .justify_center()
-            .text_color(rgb(COLOR_GRAY_600))
+            .when(active, |this| this.text_color(rgb(COLOR_BLUE_DARK)))
+            .when(!active, |this| this.text_color(rgb(COLOR_GRAY_600)))
             .text_size(px(8.))
             .child(label),
     ])
