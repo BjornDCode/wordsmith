@@ -1,8 +1,9 @@
 use std::{fs, path::PathBuf};
 
 use gpui::{
-    actions, div, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource, Bounds,
-    FocusHandle, FocusableView, KeyBinding, SharedString, ViewContext, WindowBounds, WindowOptions,
+    actions, div, impl_actions, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource,
+    Bounds, FocusHandle, FocusableView, KeyBinding, MouseButton, MouseDownEvent, SharedString,
+    ViewContext, WindowBounds, WindowOptions,
 };
 
 const COLOR_WHITE: u32 = 0xffffff;
@@ -26,6 +27,18 @@ const COLOR_BLUE_MEDIUM: u32 = 0x7dd3fc;
 const COLOR_BLUE_DARK: u32 = 0x0ea5e9;
 
 actions!(app, [Quit, ToggleSidebar]);
+impl_actions!(app, [SetMode]);
+
+#[derive(Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+struct SetMode {
+    mode: Mode,
+}
+
+impl SetMode {
+    pub fn mode(mode: Mode) -> SetMode {
+        SetMode { mode }
+    }
+}
 
 fn main() {
     gpui::App::new()
@@ -38,6 +51,9 @@ fn main() {
             context.bind_keys([
                 KeyBinding::new("cmd-q", Quit, None),
                 KeyBinding::new("cmd-b", ToggleSidebar, None),
+                KeyBinding::new("cmd-1", SetMode::mode(Mode::Outline), None),
+                KeyBinding::new("cmd-2", SetMode::mode(Mode::Write), None),
+                KeyBinding::new("cmd-3", SetMode::mode(Mode::Edit), None),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());
@@ -116,6 +132,12 @@ impl Wordsmith {
 
         context.notify();
     }
+
+    fn set_mode(&mut self, event: &SetMode, context: &mut ViewContext<Self>) {
+        self.mode = event.mode.clone();
+
+        context.notify();
+    }
 }
 
 impl FocusableView for Wordsmith {
@@ -137,6 +159,7 @@ impl Render for Wordsmith {
             .flex_row()
             .track_focus(&self.focus_handle(context))
             .on_action(context.listener(Self::toggle_sidebar))
+            .on_action(context.listener(Self::set_mode))
             .bg(rgb(COLOR_WHITE))
             .size_full()
             .font_family("MonoLisa")
@@ -145,11 +168,17 @@ impl Render for Wordsmith {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 enum Mode {
     Outline,
     Write,
     Edit,
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Mode::Write
+    }
 }
 
 fn main_content() -> gpui::Div {

@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 gpui = { git = "https://github.com/zed-industries/zed" }
+schemars = "0.8.21"
+serde = "1.0.217"
