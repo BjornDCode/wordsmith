@@ -1,4 +1,7 @@
-use gpui::{div, prelude::*, rems, rgb, AppContext, WindowOptions};
+use gpui::{
+    actions, div, prelude::*, px, rems, rgb, size, AppContext, Bounds, KeyBinding, WindowBounds,
+    WindowOptions,
+};
 
 const COLOR_WHITE: u32 = 0xffffff;
 const COLOR_BLACK: u32 = 0x000000;
@@ -16,15 +19,39 @@ const COLOR_GRAY_800: u32 = 0x1f2937;
 const COLOR_GRAY_900: u32 = 0x111827;
 const COLOR_GRAY_950: u32 = 0x030712;
 
+actions!(app, [Quit]);
+
 fn main() {
     gpui::App::new().run(|context: &mut AppContext| {
-        context
-            .open_window(WindowOptions::default(), |context| {
-                context.new_view(|_cx| Wordsmith::new())
-            })
+        let bounds = Bounds::centered(None, size(px(800.), px(600.)), context);
+
+        context.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
+
+        context.on_action(|_: &Quit, context| context.quit());
+
+        let window = context
+            .open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    ..Default::default()
+                },
+                |context| context.new_view(|_cx| Wordsmith::new()),
+            )
             .unwrap();
 
-        context.activate(true);
+        context
+            .on_keyboard_layout_change({
+                move |context| {
+                    window.update(context, |_, context| context.notify()).ok();
+                }
+            })
+            .detach();
+
+        window
+            .update(context, |view, context| {
+                context.activate(true);
+            })
+            .unwrap();
     });
 }
 
@@ -37,7 +64,7 @@ impl Wordsmith {
 }
 
 impl Render for Wordsmith {
-    fn render(&mut self, _context: &mut gpui::ViewContext<Self>) -> impl gpui::IntoElement {
+    fn render(&mut self, context: &mut gpui::ViewContext<Self>) -> impl gpui::IntoElement {
         div()
             .flex()
             .flex_row()
