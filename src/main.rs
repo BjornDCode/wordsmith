@@ -1,6 +1,8 @@
+use std::{fs, path::PathBuf};
+
 use gpui::{
-    actions, div, prelude::*, px, rems, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    KeyBinding, ViewContext, WindowBounds, WindowOptions,
+    actions, div, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource, Bounds,
+    FocusHandle, FocusableView, KeyBinding, SharedString, ViewContext, WindowBounds, WindowOptions,
 };
 
 const COLOR_WHITE: u32 = 0xffffff;
@@ -22,41 +24,72 @@ const COLOR_GRAY_950: u32 = 0x030712;
 actions!(app, [Quit, ToggleSidebar]);
 
 fn main() {
-    gpui::App::new().run(|context: &mut AppContext| {
-        let bounds = Bounds::centered(None, size(px(800.), px(600.)), context);
+    gpui::App::new()
+        .with_assets(Assets {
+            base: PathBuf::from("resources"),
+        })
+        .run(|context: &mut AppContext| {
+            let bounds = Bounds::centered(None, size(px(800.), px(600.)), context);
 
-        context.bind_keys([
-            KeyBinding::new("cmd-q", Quit, None),
-            KeyBinding::new("cmd-b", ToggleSidebar, None),
-        ]);
+            context.bind_keys([
+                KeyBinding::new("cmd-q", Quit, None),
+                KeyBinding::new("cmd-b", ToggleSidebar, None),
+            ]);
 
-        context.on_action(|_: &Quit, context| context.quit());
+            context.on_action(|_: &Quit, context| context.quit());
 
-        let window = context
-            .open_window(
-                WindowOptions {
-                    window_bounds: Some(WindowBounds::Windowed(bounds)),
-                    ..Default::default()
-                },
-                |context| context.new_view(|context| Wordsmith::new(context.focus_handle())),
-            )
-            .unwrap();
+            let window = context
+                .open_window(
+                    WindowOptions {
+                        window_bounds: Some(WindowBounds::Windowed(bounds)),
+                        ..Default::default()
+                    },
+                    |context| context.new_view(|context| Wordsmith::new(context.focus_handle())),
+                )
+                .unwrap();
 
-        context
-            .on_keyboard_layout_change({
-                move |context| {
-                    window.update(context, |_, context| context.notify()).ok();
-                }
+            context
+                .on_keyboard_layout_change({
+                    move |context| {
+                        window.update(context, |_, context| context.notify()).ok();
+                    }
+                })
+                .detach();
+
+            window
+                .update(context, |view, context| {
+                    context.focus_self();
+                    context.activate(true);
+                })
+                .unwrap();
+        });
+}
+
+struct Assets {
+    base: PathBuf,
+}
+
+impl AssetSource for Assets {
+    fn load(&self, path: &str) -> gpui::Result<Option<std::borrow::Cow<'static, [u8]>>> {
+        fs::read(self.base.join(path))
+            .map(|data| Some(std::borrow::Cow::Owned(data)))
+            .map_err(|err| err.into())
+    }
+
+    fn list(&self, path: &str) -> gpui::Result<Vec<gpui::SharedString>> {
+        fs::read_dir(self.base.join(path))
+            .map(|entries| {
+                entries
+                    .filter_map(|entry| {
+                        entry
+                            .ok()
+                            .and_then(|entry| entry.file_name().into_string().ok())
+                            .map(SharedString::from)
+                    })
+                    .collect()
             })
-            .detach();
-
-        window
-            .update(context, |view, context| {
-                context.focus_self();
-                context.activate(true);
-            })
-            .unwrap();
-    });
+            .map_err(|err| err.into())
+    }
 }
 
 struct Wordsmith {
@@ -100,6 +133,7 @@ impl Render for Wordsmith {
             .on_action(context.listener(Self::toggle_sidebar))
             .bg(rgb(COLOR_WHITE))
             .size_full()
+            .font_family("MonoLisa")
             .text_color(rgb(COLOR_BLACK))
             .children(children)
     }
@@ -115,5 +149,41 @@ fn sidebar() -> gpui::Div {
         .border_l_1()
         .border_color(rgb(COLOR_GRAY_100))
         .p(rems(1.))
-        .child("Sidebar")
+        .children(vec![mode_selector()])
+}
+
+fn mode_selector() -> gpui::Div {
+    div().flex().flex_row().gap_2().children(vec![
+        radio_button("Outline", "icons/outline.svg"),
+        radio_button("Write", "icons/write.svg"),
+        radio_button("Edit", "icons/edit.svg"),
+    ])
+}
+
+fn radio_button(label: &'static str, icon: &'static str) -> gpui::Div {
+    div().flex().flex_1().flex_col().gap_1().children(vec![
+        div()
+            .flex()
+            .justify_center()
+            .bg(rgb(COLOR_GRAY_100))
+            .py_1()
+            .border_1()
+            .border_color(rgb(COLOR_GRAY_200))
+            .rounded(px(3.))
+            .hover(|this| this.bg(rgb(COLOR_GRAY_200)))
+            .group("button")
+            .child(
+                svg()
+                    .path(icon)
+                    .size_6()
+                    .text_color(rgb(COLOR_GRAY_500))
+                    .group_hover("button", |this| this.text_color(rgb(COLOR_GRAY_600))),
+            ),
+        div()
+            .flex()
+            .justify_center()
+            .text_color(rgb(COLOR_GRAY_600))
+            .text_size(px(8.))
+            .child(label),
+    ])
 }
