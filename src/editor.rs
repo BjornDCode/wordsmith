@@ -3,7 +3,7 @@ use gpui::{
     ViewContext,
 };
 
-use crate::{TempAction, ToggleSidebar, COLOR_PINK};
+use crate::{ExampleEditorAction, COLOR_PINK};
 
 pub struct Editor {
     focus_handle: FocusHandle,
@@ -18,8 +18,8 @@ impl Editor {
         };
     }
 
-    fn temp(&mut self, _: &TempAction, context: &mut ViewContext<Self>) {
-        eprintln!("Yo");
+    fn temp(&mut self, _: &ExampleEditorAction, context: &mut ViewContext<Self>) {
+        println!("Pressed: a");
     }
 }
 

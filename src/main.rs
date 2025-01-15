@@ -29,7 +29,7 @@ const COLOR_BLUE_LIGHT: u32 = 0xe0f2fe;
 const COLOR_BLUE_MEDIUM: u32 = 0x7dd3fc;
 const COLOR_BLUE_DARK: u32 = 0x0ea5e9;
 
-actions!(app, [Quit, ToggleSidebar, TempAction]);
+actions!(app, [Quit, ToggleSidebar, ExampleEditorAction]);
 impl_actions!(app, [SetMode]);
 
 #[derive(Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
@@ -57,7 +57,7 @@ fn main() {
                 KeyBinding::new("cmd-1", SetMode::mode(Mode::Outline), None),
                 KeyBinding::new("cmd-2", SetMode::mode(Mode::Write), None),
                 KeyBinding::new("cmd-3", SetMode::mode(Mode::Edit), None),
-                KeyBinding::new("cmd-4", TempAction, "editor".into()),
+                KeyBinding::new("a", ExampleEditorAction, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());
