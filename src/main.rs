@@ -1,9 +1,12 @@
+mod editor;
+
 use std::{fs, path::PathBuf};
 
+use editor::Editor;
 use gpui::{
     actions, div, impl_actions, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource,
     Bounds, FocusHandle, FocusableView, KeyBinding, MouseButton, MouseDownEvent, SharedString,
-    ViewContext, WindowBounds, WindowOptions,
+    View, ViewContext, WindowBounds, WindowOptions,
 };
 
 const COLOR_WHITE: u32 = 0xffffff;
@@ -64,7 +67,12 @@ fn main() {
                         window_bounds: Some(WindowBounds::Windowed(bounds)),
                         ..Default::default()
                     },
-                    |context| context.new_view(|context| Wordsmith::new(context.focus_handle())),
+                    |context| {
+                        let editor =
+                            context.new_view(|context| Editor::new(context.focus_handle()));
+
+                        context.new_view(|context| Wordsmith::new(context.focus_handle(), editor))
+                    },
                 )
                 .unwrap();
 
@@ -78,7 +86,7 @@ fn main() {
 
             window
                 .update(context, |view, context| {
-                    context.focus_self();
+                    context.focus_view(&view.editor);
                     context.activate(true);
                 })
                 .unwrap();
@@ -116,14 +124,16 @@ struct Wordsmith {
     focus_handle: FocusHandle,
     show_sidebar: bool,
     mode: Mode,
+    editor: View<Editor>,
 }
 
 impl Wordsmith {
-    pub fn new(focus_handle: FocusHandle) -> Wordsmith {
+    pub fn new(focus_handle: FocusHandle, editor: View<Editor>) -> Wordsmith {
         Wordsmith {
             focus_handle,
             show_sidebar: true,
             mode: Mode::Write,
+            editor,
         }
     }
 
@@ -149,9 +159,12 @@ impl FocusableView for Wordsmith {
 impl Render for Wordsmith {
     fn render(&mut self, context: &mut gpui::ViewContext<Self>) -> impl gpui::IntoElement {
         let children = if self.show_sidebar {
-            vec![main_content(), sidebar(self.mode.clone())]
+            vec![
+                main_content(self.editor.clone()),
+                sidebar(self.mode.clone()),
+            ]
         } else {
-            vec![main_content()]
+            vec![main_content(self.editor.clone())]
         };
 
         div()
@@ -181,8 +194,8 @@ impl Default for Mode {
     }
 }
 
-fn main_content() -> gpui::Div {
-    div().flex_1().child("Main")
+fn main_content(editor: View<Editor>) -> gpui::Div {
+    div().flex().justify_center().flex_1().child(editor)
 }
 
 fn sidebar(mode: Mode) -> gpui::Div {
