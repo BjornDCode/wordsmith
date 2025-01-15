@@ -149,7 +149,7 @@ impl FocusableView for Wordsmith {
 impl Render for Wordsmith {
     fn render(&mut self, context: &mut gpui::ViewContext<Self>) -> impl gpui::IntoElement {
         let children = if self.show_sidebar {
-            vec![main_content(), sidebar(&self.mode)]
+            vec![main_content(), sidebar(self.mode.clone())]
         } else {
             vec![main_content()]
         };
@@ -185,7 +185,7 @@ fn main_content() -> gpui::Div {
     div().flex_1().child("Main")
 }
 
-fn sidebar(mode: &Mode) -> gpui::Div {
+fn sidebar(mode: Mode) -> gpui::Div {
     div()
         .w(rems(15.))
         .border_l_1()
@@ -194,15 +194,20 @@ fn sidebar(mode: &Mode) -> gpui::Div {
         .children(vec![mode_selector(mode)])
 }
 
-fn mode_selector(mode: &Mode) -> gpui::Div {
+fn mode_selector(mode: Mode) -> gpui::Div {
     div().flex().flex_row().gap_2().children(vec![
-        radio_button("Outline", "icons/outline.svg", mode == &Mode::Outline),
-        radio_button("Write", "icons/write.svg", mode == &Mode::Write),
-        radio_button("Edit", "icons/edit.svg", mode == &Mode::Edit),
+        radio_button(
+            "Outline",
+            "icons/outline.svg",
+            mode == Mode::Outline,
+            Mode::Outline,
+        ),
+        radio_button("Write", "icons/write.svg", mode == Mode::Write, Mode::Write),
+        radio_button("Edit", "icons/edit.svg", mode == Mode::Edit, Mode::Edit),
     ])
 }
 
-fn radio_button(label: &'static str, icon: &'static str, active: bool) -> gpui::Div {
+fn radio_button(label: &'static str, icon: &'static str, active: bool, mode: Mode) -> gpui::Div {
     div().flex().flex_1().flex_col().gap_1().children(vec![
         div()
             .flex()
@@ -230,7 +235,10 @@ fn radio_button(label: &'static str, icon: &'static str, active: bool) -> gpui::
                         this.text_color(rgb(COLOR_GRAY_500))
                             .group_hover("button", |this| this.text_color(rgb(COLOR_GRAY_600)))
                     }),
-            ),
+            )
+            .on_mouse_up(MouseButton::Left, move |_event, context| {
+                context.dispatch_action(Box::new(SetMode::mode(mode.clone())));
+            }),
         div()
             .flex()
             .justify_center()
