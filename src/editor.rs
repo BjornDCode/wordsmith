@@ -1,8 +1,9 @@
 use gpui::{
     div, prelude::*, px, rgb, AppContext, FocusHandle, FocusableView, Render, SharedString,
+    ViewContext,
 };
 
-use crate::COLOR_PINK;
+use crate::{TempAction, ToggleSidebar, COLOR_PINK};
 
 pub struct Editor {
     focus_handle: FocusHandle,
@@ -16,6 +17,10 @@ impl Editor {
             content: "Yo".into(),
         };
     }
+
+    fn temp(&mut self, _: &TempAction, context: &mut ViewContext<Self>) {
+        eprintln!("Yo");
+    }
 }
 
 impl FocusableView for Editor {
@@ -25,13 +30,18 @@ impl FocusableView for Editor {
 }
 
 impl Render for Editor {
-    fn render(&mut self, cx: &mut gpui::ViewContext<Self>) -> impl gpui::IntoElement {
-        div().pt_8().child(
-            div()
-                .bg(rgb(COLOR_PINK))
-                .w(px(480.))
-                .child(self.content.clone()),
-        )
+    fn render(&mut self, context: &mut gpui::ViewContext<Self>) -> impl gpui::IntoElement {
+        div()
+            .track_focus(&self.focus_handle(context))
+            .key_context("editor")
+            .on_action(context.listener(Self::temp))
+            .pt_8()
+            .child(
+                div()
+                    .bg(rgb(COLOR_PINK))
+                    .w(px(480.))
+                    .child(self.content.clone()),
+            )
     }
 }
 
