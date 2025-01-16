@@ -1,10 +1,14 @@
 use gpui::{
-    div, hsla, prelude::*, px, rgb, AppContext, FocusHandle, FocusableView, Font, FontStyle,
-    FontWeight, Hsla, Point, Render, ShapedLine, SharedString, StrikethroughStyle, Style, TextRun,
-    TextStyle, UnderlineStyle, View, ViewContext, WrappedLine,
+    div, fill, hsla, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle,
+    FocusableView, Font, FontStyle, FontWeight, Hsla, PaintQuad, Point, Render, ShapedLine,
+    SharedString, StrikethroughStyle, Style, TextRun, TextStyle, UnderlineStyle, View, ViewContext,
+    WrappedLine,
 };
 
-use crate::{ExampleEditorAction, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK};
+use crate::{
+    ExampleEditorAction, COLOR_BLUE_DARK, COLOR_BLUE_MEDIUM, COLOR_GRAY_700, COLOR_GRAY_800,
+    COLOR_PINK,
+};
 
 pub struct Editor {
     focus_handle: FocusHandle,
@@ -32,8 +36,6 @@ impl FocusableView for Editor {
 
 impl Render for Editor {
     fn render(&mut self, context: &mut gpui::ViewContext<Self>) -> impl gpui::IntoElement {
-        let is_focused = self.focus_handle.is_focused(context);
-
         div()
             .track_focus(&self.focus_handle(context))
             .key_context("editor")
@@ -47,7 +49,7 @@ impl Render for Editor {
                     .line_height(px(24.))
                     .child(EditorElement {
                         input: context.view().clone(),
-                    }), // .when(is_focused, |this| this.child("CURSOR")),
+                    }),
             )
     }
 }
@@ -68,6 +70,7 @@ impl IntoElement for EditorElement {
 
 struct PrepaintState {
     lines: Option<Vec<WrappedLine>>,
+    cursor: Option<PaintQuad>,
 }
 
 impl Element for EditorElement {
@@ -83,7 +86,7 @@ impl Element for EditorElement {
         id: Option<&gpui::GlobalElementId>,
         context: &mut gpui::WindowContext,
     ) -> (gpui::LayoutId, Self::RequestLayoutState) {
-        let mut style = Style::default();
+        let style = Style::default();
 
         (context.request_layout(style, []), ())
     }
@@ -151,7 +154,21 @@ impl Element for EditorElement {
             .unwrap()
             .to_vec();
 
-        PrepaintState { lines: Some(lines) }
+        let cursor = fill(
+            Bounds::new(
+                point(
+                    px((bounds.left().to_f64() + 20. - 1.) as f32),
+                    px((bounds.top().to_f64() + 4.) as f32),
+                ),
+                size(px(2.), px(16.)),
+            ),
+            rgb(COLOR_BLUE_DARK),
+        );
+
+        PrepaintState {
+            lines: Some(lines),
+            cursor: Some(cursor),
+        }
     }
 
     fn paint(
@@ -162,6 +179,7 @@ impl Element for EditorElement {
         prepaint: &mut Self::PrepaintState,
         context: &mut gpui::WindowContext,
     ) {
+        let focus_handle = self.input.read(context).focus_handle.clone();
         let lines = prepaint.lines.take().unwrap().into_iter().enumerate();
 
         for (index, line) in lines {
@@ -170,6 +188,12 @@ impl Element for EditorElement {
                 bounds.origin.y + (context.line_height() * index),
             );
             line.paint(point, context.line_height(), context).unwrap();
+        }
+
+        if focus_handle.is_focused(context) {
+            if let Some(cursor) = prepaint.cursor.take() {
+                context.paint_quad(cursor);
+            }
         }
     }
 }
