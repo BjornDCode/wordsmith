@@ -1,10 +1,10 @@
 use gpui::{
     div, hsla, prelude::*, px, rgb, AppContext, FocusHandle, FocusableView, Font, FontStyle,
-    FontWeight, Point, Render, ShapedLine, SharedString, StrikethroughStyle, Style, TextRun,
+    FontWeight, Hsla, Point, Render, ShapedLine, SharedString, StrikethroughStyle, Style, TextRun,
     TextStyle, UnderlineStyle, View, ViewContext, WrappedLine,
 };
 
-use crate::{ExampleEditorAction, COLOR_PINK};
+use crate::{ExampleEditorAction, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK};
 
 pub struct Editor {
     focus_handle: FocusHandle,
@@ -99,63 +99,73 @@ impl Element for EditorElement {
         let font_size = style.font_size.to_pixels(context.rem_size());
 
         let text = "Normal underline background\nstrike bold italic";
-        // let text = vec![
-        //     Span {
-        //         start: 0,
-        //         end: 7,
+        let text = "This is a headline\n\nThis is a paragraph with some **bold** text, some _italic_ text and some ~~deleted~~ text.";
 
-        //     },
-        // ];
+        let headline_color = Hsla::from(rgb(COLOR_GRAY_800));
+        let body_color = Hsla::from(rgb(COLOR_GRAY_700));
 
         let runs = vec![
             TextRun {
-                len: 7,
-                font: style.font(),
-                color: style.color,
+                len: 18,
+                font: Font {
+                    weight: FontWeight::EXTRA_BOLD,
+                    ..style.font()
+                },
+                color: headline_color,
                 background_color: None,
                 underline: None,
                 strikethrough: None,
             },
             TextRun {
-                len: 9,
+                len: 32,
                 font: style.font(),
-                color: style.color,
-                background_color: None,
-                underline: Some(UnderlineStyle {
-                    color: Some(hsla(0., 0., 0., 0.4)),
-                    thickness: px(2.),
-                    wavy: true,
-                }),
-                strikethrough: None,
-            },
-            TextRun {
-                len: 1,
-                font: style.font(),
-                color: style.color,
+                color: body_color,
                 background_color: None,
                 underline: None,
                 strikethrough: None,
             },
             TextRun {
-                len: 10,
-                font: style.font(),
-                color: style.color,
-                background_color: Some(hsla(0., 0., 0., 0.2)),
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
-                len: 1,
-                font: style.font(),
-                color: style.color,
+                len: 8,
+                font: Font {
+                    weight: FontWeight::EXTRA_BOLD,
+                    ..style.font()
+                },
+                color: body_color,
                 background_color: None,
                 underline: None,
                 strikethrough: None,
             },
             TextRun {
-                len: 6,
+                len: 12,
                 font: style.font(),
-                color: style.color,
+                color: body_color,
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            },
+            TextRun {
+                len: 8,
+                font: Font {
+                    style: FontStyle::Italic,
+                    ..style.font()
+                },
+                color: body_color,
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            },
+            TextRun {
+                len: 15,
+                font: style.font(),
+                color: body_color,
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            },
+            TextRun {
+                len: 11,
+                font: style.font(),
+                color: body_color,
                 background_color: None,
                 underline: None,
                 strikethrough: Some(StrikethroughStyle {
@@ -164,44 +174,118 @@ impl Element for EditorElement {
                 }),
             },
             TextRun {
-                len: 1,
-                font: style.font(),
-                color: style.color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
-                len: 4,
-                font: Font {
-                    weight: FontWeight::EXTRA_BOLD,
-                    ..style.font()
-                },
-                color: style.color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
-                len: 1,
-                font: style.font(),
-                color: style.color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
                 len: 6,
-                font: Font {
-                    style: FontStyle::Italic,
-                    ..style.font()
-                },
-                color: style.color,
+                font: style.font(),
+                color: body_color,
                 background_color: None,
                 underline: None,
                 strikethrough: None,
             },
         ];
+
+        // let text = vec![
+        //     Span {
+        //         start: 0,
+        //         end: 7,
+
+        //     },
+        // ];
+
+        // let runs = vec![
+        //     TextRun {
+        //         len: 7,
+        //         font: style.font(),
+        //         color: style.color,
+        //         background_color: None,
+        //         underline: None,
+        //         strikethrough: None,
+        //     },
+        //     TextRun {
+        //         len: 9,
+        //         font: style.font(),
+        //         color: style.color,
+        //         background_color: None,
+        //         underline: Some(UnderlineStyle {
+        //             color: Some(hsla(0., 0., 0., 0.4)),
+        //             thickness: px(2.),
+        //             wavy: true,
+        //         }),
+        //         strikethrough: None,
+        //     },
+        //     TextRun {
+        //         len: 1,
+        //         font: style.font(),
+        //         color: style.color,
+        //         background_color: None,
+        //         underline: None,
+        //         strikethrough: None,
+        //     },
+        //     TextRun {
+        //         len: 10,
+        //         font: style.font(),
+        //         color: style.color,
+        //         background_color: Some(hsla(0., 0., 0., 0.2)),
+        //         underline: None,
+        //         strikethrough: None,
+        //     },
+        //     TextRun {
+        //         len: 1,
+        //         font: style.font(),
+        //         color: style.color,
+        //         background_color: None,
+        //         underline: None,
+        //         strikethrough: None,
+        //     },
+        //     TextRun {
+        //         len: 6,
+        //         font: style.font(),
+        //         color: style.color,
+        //         background_color: None,
+        //         underline: None,
+        //         strikethrough: Some(StrikethroughStyle {
+        //             thickness: px(2.),
+        //             color: Some(hsla(0., 0., 0., 0.8)),
+        //         }),
+        //     },
+        //     TextRun {
+        //         len: 1,
+        //         font: style.font(),
+        //         color: style.color,
+        //         background_color: None,
+        //         underline: None,
+        //         strikethrough: None,
+        //     },
+        //     TextRun {
+        //         len: 4,
+        //         font: Font {
+        //             weight: FontWeight::EXTRA_BOLD,
+        //             ..style.font()
+        //         },
+        //         color: style.color,
+        //         background_color: None,
+        //         underline: None,
+        //         strikethrough: None,
+        //     },
+        //     TextRun {
+        //         len: 1,
+        //         font: style.font(),
+        //         color: style.color,
+        //         background_color: None,
+        //         underline: None,
+        //         strikethrough: None,
+        //     },
+        //     TextRun {
+        //         len: 6,
+        //         font: Font {
+        //             style: FontStyle::Italic,
+        //             ..style.font()
+        //         },
+        //         color: style.color,
+        //         background_color: None,
+        //         underline: None,
+        //         strikethrough: None,
+        //     },
+        // ];
 
         let lines = context
             .text_system()
