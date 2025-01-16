@@ -1,7 +1,7 @@
 use gpui::{
     div, hsla, prelude::*, px, rgb, AppContext, FocusHandle, FocusableView, Font, FontStyle,
-    FontWeight, Render, ShapedLine, SharedString, StrikethroughStyle, Style, TextRun, TextStyle,
-    UnderlineStyle, View, ViewContext,
+    FontWeight, Point, Render, ShapedLine, SharedString, StrikethroughStyle, Style, TextRun,
+    TextStyle, UnderlineStyle, View, ViewContext, WrappedLine,
 };
 
 use crate::{ExampleEditorAction, COLOR_PINK};
@@ -41,9 +41,13 @@ impl Render for Editor {
             .pt_8()
             .group("editor-container")
             .child(
-                div().bg(rgb(COLOR_PINK)).w(px(480.)).child(EditorElement {
-                    input: context.view().clone(),
-                }), // .when(is_focused, |this| this.child("CURSOR")),
+                div()
+                    .bg(rgb(COLOR_PINK))
+                    .w(px(480.))
+                    .line_height(px(24.))
+                    .child(EditorElement {
+                        input: context.view().clone(),
+                    }), // .when(is_focused, |this| this.child("CURSOR")),
             )
     }
 }
@@ -63,7 +67,7 @@ impl IntoElement for EditorElement {
 }
 
 struct PrepaintState {
-    line: Option<ShapedLine>,
+    lines: Option<Vec<WrappedLine>>,
 }
 
 impl Element for EditorElement {
@@ -94,7 +98,14 @@ impl Element for EditorElement {
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
 
-        let text = "Normal underline background strike bold italic";
+        let text = "Normal underline background\nstrike bold italic";
+        // let text = vec![
+        //     Span {
+        //         start: 0,
+        //         end: 7,
+
+        //     },
+        // ];
 
         let runs = vec![
             TextRun {
@@ -192,12 +203,13 @@ impl Element for EditorElement {
             },
         ];
 
-        let line = context
+        let lines = context
             .text_system()
-            .shape_line(text.into(), font_size, &runs)
-            .unwrap();
+            .shape_text(text.into(), font_size, &runs, Some(px(480.)))
+            .unwrap()
+            .to_vec();
 
-        PrepaintState { line: Some(line) }
+        PrepaintState { lines: Some(lines) }
     }
 
     fn paint(
@@ -208,9 +220,14 @@ impl Element for EditorElement {
         prepaint: &mut Self::PrepaintState,
         context: &mut gpui::WindowContext,
     ) {
-        let line = prepaint.line.take().unwrap();
+        let lines = prepaint.lines.take().unwrap().into_iter().enumerate();
 
-        line.paint(bounds.origin, context.line_height(), context)
-            .unwrap();
+        for (index, line) in lines {
+            let point = Point::new(
+                bounds.origin.x,
+                bounds.origin.y + (context.line_height() * index),
+            );
+            line.paint(point, context.line_height(), context).unwrap();
+        }
     }
 }
