@@ -98,52 +98,46 @@ impl Element for EditorElement {
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
 
-        let text = "This _is a_ headline\n\nThis is a paragraph with some **bold** text, some _italic_ text and **some _mixed_** text.";
+        let text = "This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.";
 
         let nodes = vec![
             Node::Headline(Headline {
                 start: 0,
-                end: 20,
+                end: 18,
                 decorations: vec![Span {
-                    start: 5,
-                    end: 11,
+                    start: 10,
+                    end: 18,
                     weight: FontWeight::NORMAL,
                     style: FontStyle::Italic,
                 }],
             }),
             Node::Paragraph(Paragraph {
-                start: 20,
-                end: 112,
+                start: 18,
+                end: 100,
                 decorations: vec![
                     Span {
-                        start: 52,
-                        end: 60,
+                        start: 50,
+                        end: 54,
                         weight: FontWeight::EXTRA_BOLD,
                         style: FontStyle::Normal,
                     },
                     Span {
-                        start: 72,
-                        end: 80,
+                        start: 66,
+                        end: 72,
                         weight: FontWeight::NORMAL,
                         style: FontStyle::Italic,
                     },
                     Span {
-                        start: 90,
-                        end: 97,
+                        start: 82,
+                        end: 87,
                         weight: FontWeight::EXTRA_BOLD,
                         style: FontStyle::Normal,
                     },
                     Span {
-                        start: 97,
-                        end: 104,
+                        start: 87,
+                        end: 92,
                         weight: FontWeight::EXTRA_BOLD,
                         style: FontStyle::Italic,
-                    },
-                    Span {
-                        start: 104,
-                        end: 106,
-                        weight: FontWeight::EXTRA_BOLD,
-                        style: FontStyle::Normal,
                     },
                 ],
             }),
