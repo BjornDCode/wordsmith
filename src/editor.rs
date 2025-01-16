@@ -98,194 +98,58 @@ impl Element for EditorElement {
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
 
-        let text = "Normal underline background\nstrike bold italic";
-        let text = "This is a headline\n\nThis is a paragraph with some **bold** text, some _italic_ text and some ~~deleted~~ text.";
+        let text = "This _is a_ headline\n\nThis is a paragraph with some **bold** text, some _italic_ text and **some _mixed_** text.";
 
-        let headline_color = Hsla::from(rgb(COLOR_GRAY_800));
-        let body_color = Hsla::from(rgb(COLOR_GRAY_700));
-
-        let runs = vec![
-            TextRun {
-                len: 18,
-                font: Font {
-                    weight: FontWeight::EXTRA_BOLD,
-                    ..style.font()
-                },
-                color: headline_color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
-                len: 32,
-                font: style.font(),
-                color: body_color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
-                len: 8,
-                font: Font {
-                    weight: FontWeight::EXTRA_BOLD,
-                    ..style.font()
-                },
-                color: body_color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
-                len: 12,
-                font: style.font(),
-                color: body_color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
-                len: 8,
-                font: Font {
+        let nodes = vec![
+            Node::Headline(Headline {
+                start: 0,
+                end: 20,
+                decorations: vec![Span {
+                    start: 5,
+                    end: 11,
+                    weight: FontWeight::NORMAL,
                     style: FontStyle::Italic,
-                    ..style.font()
-                },
-                color: body_color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
-                len: 15,
-                font: style.font(),
-                color: body_color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            TextRun {
-                len: 11,
-                font: style.font(),
-                color: body_color,
-                background_color: None,
-                underline: None,
-                strikethrough: Some(StrikethroughStyle {
-                    thickness: px(2.),
-                    color: Some(hsla(0., 0., 0., 0.8)),
-                }),
-            },
-            TextRun {
-                len: 6,
-                font: style.font(),
-                color: body_color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
+                }],
+            }),
+            Node::Paragraph(Paragraph {
+                start: 20,
+                end: 112,
+                decorations: vec![
+                    Span {
+                        start: 52,
+                        end: 60,
+                        weight: FontWeight::EXTRA_BOLD,
+                        style: FontStyle::Normal,
+                    },
+                    Span {
+                        start: 72,
+                        end: 80,
+                        weight: FontWeight::NORMAL,
+                        style: FontStyle::Italic,
+                    },
+                    Span {
+                        start: 90,
+                        end: 97,
+                        weight: FontWeight::EXTRA_BOLD,
+                        style: FontStyle::Normal,
+                    },
+                    Span {
+                        start: 97,
+                        end: 104,
+                        weight: FontWeight::EXTRA_BOLD,
+                        style: FontStyle::Italic,
+                    },
+                    Span {
+                        start: 104,
+                        end: 106,
+                        weight: FontWeight::EXTRA_BOLD,
+                        style: FontStyle::Normal,
+                    },
+                ],
+            }),
         ];
 
-        // let text = vec![
-        //     Span {
-        //         start: 0,
-        //         end: 7,
-
-        //     },
-        // ];
-
-        // let runs = vec![
-        //     TextRun {
-        //         len: 7,
-        //         font: style.font(),
-        //         color: style.color,
-        //         background_color: None,
-        //         underline: None,
-        //         strikethrough: None,
-        //     },
-        //     TextRun {
-        //         len: 9,
-        //         font: style.font(),
-        //         color: style.color,
-        //         background_color: None,
-        //         underline: Some(UnderlineStyle {
-        //             color: Some(hsla(0., 0., 0., 0.4)),
-        //             thickness: px(2.),
-        //             wavy: true,
-        //         }),
-        //         strikethrough: None,
-        //     },
-        //     TextRun {
-        //         len: 1,
-        //         font: style.font(),
-        //         color: style.color,
-        //         background_color: None,
-        //         underline: None,
-        //         strikethrough: None,
-        //     },
-        //     TextRun {
-        //         len: 10,
-        //         font: style.font(),
-        //         color: style.color,
-        //         background_color: Some(hsla(0., 0., 0., 0.2)),
-        //         underline: None,
-        //         strikethrough: None,
-        //     },
-        //     TextRun {
-        //         len: 1,
-        //         font: style.font(),
-        //         color: style.color,
-        //         background_color: None,
-        //         underline: None,
-        //         strikethrough: None,
-        //     },
-        //     TextRun {
-        //         len: 6,
-        //         font: style.font(),
-        //         color: style.color,
-        //         background_color: None,
-        //         underline: None,
-        //         strikethrough: Some(StrikethroughStyle {
-        //             thickness: px(2.),
-        //             color: Some(hsla(0., 0., 0., 0.8)),
-        //         }),
-        //     },
-        //     TextRun {
-        //         len: 1,
-        //         font: style.font(),
-        //         color: style.color,
-        //         background_color: None,
-        //         underline: None,
-        //         strikethrough: None,
-        //     },
-        //     TextRun {
-        //         len: 4,
-        //         font: Font {
-        //             weight: FontWeight::EXTRA_BOLD,
-        //             ..style.font()
-        //         },
-        //         color: style.color,
-        //         background_color: None,
-        //         underline: None,
-        //         strikethrough: None,
-        //     },
-        //     TextRun {
-        //         len: 1,
-        //         font: style.font(),
-        //         color: style.color,
-        //         background_color: None,
-        //         underline: None,
-        //         strikethrough: None,
-        //     },
-        //     TextRun {
-        //         len: 6,
-        //         font: Font {
-        //             style: FontStyle::Italic,
-        //             ..style.font()
-        //         },
-        //         color: style.color,
-        //         background_color: None,
-        //         underline: None,
-        //         strikethrough: None,
-        //     },
-        // ];
+        let runs = get_text_runs(nodes, style.font());
 
         let lines = context
             .text_system()
@@ -314,4 +178,159 @@ impl Element for EditorElement {
             line.paint(point, context.line_height(), context).unwrap();
         }
     }
+}
+
+enum Node {
+    Headline(Headline),
+    Paragraph(Paragraph),
+}
+
+struct Headline {
+    start: usize,
+    end: usize,
+    decorations: Vec<Span>,
+}
+
+struct Paragraph {
+    start: usize,
+    end: usize,
+    decorations: Vec<Span>,
+}
+
+struct Span {
+    start: usize,
+    end: usize,
+    weight: FontWeight,
+    style: FontStyle,
+}
+
+fn get_text_runs_for_headline(node: Headline, font: Font) -> Vec<TextRun> {
+    let mut runs = Vec::new();
+    let mut current_pos = node.start;
+
+    // Sort decorations by start position for sequential processing
+    let mut decorations = node.decorations;
+    decorations.sort_by_key(|span| span.start);
+
+    for span in decorations {
+        // If there's a gap before the decoration, add a base run
+        if current_pos < span.start {
+            runs.push(TextRun {
+                len: span.start - current_pos,
+                font: Font {
+                    weight: FontWeight::EXTRA_BOLD,
+                    ..font.clone()
+                },
+                color: Hsla::from(rgb(COLOR_GRAY_800)),
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            });
+        }
+
+        // Add the decorated run
+        runs.push(TextRun {
+            len: span.end - span.start,
+            font: Font {
+                style: span.style,
+                weight: FontWeight::EXTRA_BOLD,
+                ..font.clone()
+            },
+            color: Hsla::from(rgb(COLOR_GRAY_800)),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        });
+
+        current_pos = span.end;
+    }
+
+    // If there's remaining text after the last decoration, add a final base run
+    if current_pos < node.end {
+        runs.push(TextRun {
+            len: node.end - current_pos,
+            font: Font {
+                weight: FontWeight::EXTRA_BOLD,
+                ..font
+            },
+            color: Hsla::from(rgb(COLOR_GRAY_800)),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        });
+    }
+
+    runs
+}
+
+fn get_text_runs_for_paragraph(node: Paragraph, font: Font) -> Vec<TextRun> {
+    let mut runs = Vec::new();
+    let mut current_pos = node.start;
+
+    // Sort decorations by start position for sequential processing
+    let mut decorations = node.decorations;
+    decorations.sort_by_key(|span| span.start);
+
+    for span in decorations {
+        // If there's a gap before the decoration, add a base run
+        if current_pos < span.start {
+            runs.push(TextRun {
+                len: span.start - current_pos,
+                font: font.clone(),
+                color: Hsla::from(rgb(COLOR_GRAY_700)),
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            });
+        }
+
+        // Add the decorated run
+        runs.push(TextRun {
+            len: span.end - span.start,
+            font: Font {
+                weight: span.weight,
+                style: span.style,
+                ..font.clone()
+            },
+            color: Hsla::from(rgb(COLOR_GRAY_700)),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        });
+
+        current_pos = span.end;
+    }
+
+    // If there's remaining text after the last decoration, add a final base run
+    if current_pos < node.end {
+        runs.push(TextRun {
+            len: node.end - current_pos,
+            font: font.clone(),
+            color: Hsla::from(rgb(COLOR_GRAY_700)),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        });
+    }
+
+    runs
+}
+
+fn get_text_runs_for_node(node: Node, font: Font) -> Vec<TextRun> {
+    match node {
+        Node::Headline(node) => get_text_runs_for_headline(node, font),
+        Node::Paragraph(node) => get_text_runs_for_paragraph(node, font),
+    }
+}
+
+fn get_text_runs(nodes: Vec<Node>, font: Font) -> Vec<TextRun> {
+    let mut runs: Vec<TextRun> = vec![];
+
+    for node in nodes {
+        let node_runs = get_text_runs_for_node(node, font.clone());
+
+        runs.extend(node_runs);
+    }
+
+    return runs;
 }
