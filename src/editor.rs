@@ -41,13 +41,9 @@ impl Render for Editor {
             .pt_8()
             .group("editor-container")
             .child(
-                div()
-                    .bg(rgb(COLOR_PINK))
-                    .w(px(480.))
-                    .child(EditorElement {
-                        input: context.view().clone(),
-                    })
-                    .when(is_focused, |this| this.child("CURSOR")),
+                div().bg(rgb(COLOR_PINK)).w(px(480.)).child(EditorElement {
+                    input: context.view().clone(),
+                }), // .when(is_focused, |this| this.child("CURSOR")),
             )
     }
 }
