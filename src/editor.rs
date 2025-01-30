@@ -67,7 +67,7 @@ impl IntoElement for EditorElement {
 struct PrepaintState {
     lines: Option<Vec<WrappedLine>>,
     cursor: Option<PaintQuad>,
-    display_map: DisplayMap,
+    headline_rectangles: Vec<PaintQuad>,
 }
 
 impl Element for EditorElement {
@@ -164,32 +164,7 @@ impl Element for EditorElement {
             rgb(COLOR_BLUE_DARK),
         );
 
-        PrepaintState {
-            lines: Some(lines),
-            cursor: Some(cursor),
-            display_map,
-        }
-    }
-
-    fn paint(
-        &mut self,
-        _id: Option<&gpui::GlobalElementId>,
-        bounds: gpui::Bounds<gpui::Pixels>,
-        _request_layout: &mut Self::RequestLayoutState,
-        prepaint: &mut Self::PrepaintState,
-        context: &mut gpui::WindowContext,
-    ) {
-        let focus_handle = self.input.read(context).focus_handle.clone();
-        let lines = prepaint.lines.take().unwrap().into_iter().enumerate();
-        let display_map = prepaint.display_map.clone();
-
-        for (index, line) in lines {
-            let point = Point::new(
-                bounds.origin.x,
-                bounds.origin.y + (context.line_height() * index),
-            );
-            line.paint(point, context.line_height(), context).unwrap();
-        }
+        let mut headline_rectangles = vec![];
 
         for headline in display_map.headlines {
             let width = px(16. * headline.level as f32);
@@ -203,7 +178,39 @@ impl Element for EditorElement {
                 ),
                 rgb(COLOR_GRAY_800),
             );
-            context.paint_quad(rect);
+
+            headline_rectangles.push(rect);
+        }
+
+        PrepaintState {
+            lines: Some(lines),
+            cursor: Some(cursor),
+            headline_rectangles,
+        }
+    }
+
+    fn paint(
+        &mut self,
+        _id: Option<&gpui::GlobalElementId>,
+        bounds: gpui::Bounds<gpui::Pixels>,
+        _request_layout: &mut Self::RequestLayoutState,
+        prepaint: &mut Self::PrepaintState,
+        context: &mut gpui::WindowContext,
+    ) {
+        let focus_handle = self.input.read(context).focus_handle.clone();
+        let lines = prepaint.lines.take().unwrap().into_iter().enumerate();
+        let headline_rectangles = prepaint.headline_rectangles.clone();
+
+        for (index, line) in lines {
+            let point = Point::new(
+                bounds.origin.x,
+                bounds.origin.y + (context.line_height() * index),
+            );
+            line.paint(point, context.line_height(), context).unwrap();
+        }
+
+        for rectangle in headline_rectangles {
+            context.paint_quad(rectangle);
         }
 
         if focus_handle.is_focused(context) {
