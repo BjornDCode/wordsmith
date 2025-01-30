@@ -1,7 +1,7 @@
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    Font, FontStyle, FontWeight, Hsla, PaintQuad, Point, Render, SharedString, Style, TextRun,
-    View, ViewContext, WrappedLine,
+    Font, FontWeight, Hsla, PaintQuad, Point, Render, SharedString, Style, TextRun, View,
+    ViewContext, WrappedLine,
 };
 
 use crate::{ExampleEditorAction, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK};
@@ -101,18 +101,29 @@ impl Element for EditorElement {
 
         let mut spans: Vec<TextSpan> = vec![];
         let mut offset = 0;
+        let mut display_map: Vec<DisplayMapRange> = vec![];
 
         for line in text.lines() {
             if !line.is_empty() {
                 if line.starts_with('#') {
+                    let removed_count: usize = display_map
+                        .iter()
+                        .map(|range| range.start + range.length)
+                        .sum();
+
                     let level = line
                         .chars()
                         .take_while(|&character| character == '#')
                         .count();
 
-                    spans.push(TextSpan {
+                    display_map.push(DisplayMapRange {
                         start: offset,
-                        length: line.len(),
+                        length: level + 1,
+                    });
+
+                    spans.push(TextSpan {
+                        start: offset - removed_count,
+                        length: line.len() - level - 1,
                         kind: TextSpanType::Headline,
                     });
                 }
@@ -123,11 +134,12 @@ impl Element for EditorElement {
             offset += 1; // Newline character
         }
 
-        let runs = get_text_runs_from_spans(text, spans, style.font());
+        let prepared_content = apply_display_map(text, display_map);
+        let runs = get_text_runs_from_spans(&prepared_content, spans, style.font());
 
         let lines = context
             .text_system()
-            .shape_text(text.into(), font_size, &runs, Some(px(480.)))
+            .shape_text(prepared_content.into(), font_size, &runs, Some(px(480.)))
             .unwrap()
             .to_vec();
 
@@ -150,9 +162,9 @@ impl Element for EditorElement {
 
     fn paint(
         &mut self,
-        id: Option<&gpui::GlobalElementId>,
+        _id: Option<&gpui::GlobalElementId>,
         bounds: gpui::Bounds<gpui::Pixels>,
-        request_layout: &mut Self::RequestLayoutState,
+        _request_layout: &mut Self::RequestLayoutState,
         prepaint: &mut Self::PrepaintState,
         context: &mut gpui::WindowContext,
     ) {
@@ -188,7 +200,13 @@ enum TextSpanType {
     Headline,
 }
 
-fn get_text_runs_from_spans(content: &str, spans: Vec<TextSpan>, font: Font) -> Vec<TextRun> {
+#[derive(Debug, Clone, Copy)]
+struct DisplayMapRange {
+    start: usize,
+    length: usize,
+}
+
+fn get_text_runs_from_spans(content: &String, spans: Vec<TextSpan>, font: Font) -> Vec<TextRun> {
     if spans.len() == 0 {
         return vec![TextRun {
             len: content.len(),
@@ -256,7 +274,18 @@ fn get_text_runs_from_spans(content: &str, spans: Vec<TextSpan>, font: Font) -> 
         runs.push(run);
     }
 
-    // println!("RUNS: {:?}", runs);
-
     return runs;
+}
+
+fn apply_display_map(content: &str, display_map: Vec<DisplayMapRange>) -> String {
+    let mut modified = String::from(content);
+
+    let mut count = 0;
+
+    for range in display_map {
+        modified.drain(range.start - count..range.start + range.length - count);
+        count += range.length;
+    }
+
+    return modified;
 }
