@@ -1,14 +1,10 @@
 use gpui::{
-    div, fill, hsla, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle,
-    FocusableView, Font, FontStyle, FontWeight, Hsla, PaintQuad, Point, Render, ShapedLine,
-    SharedString, StrikethroughStyle, Style, TextRun, TextStyle, UnderlineStyle, View, ViewContext,
-    WrappedLine,
+    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
+    Font, FontStyle, FontWeight, Hsla, PaintQuad, Point, Render, SharedString, Style, TextRun,
+    View, ViewContext, WrappedLine,
 };
 
-use crate::{
-    ExampleEditorAction, COLOR_BLUE_DARK, COLOR_BLUE_MEDIUM, COLOR_GRAY_700, COLOR_GRAY_800,
-    COLOR_PINK,
-};
+use crate::{ExampleEditorAction, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK};
 
 pub struct Editor {
     focus_handle: FocusHandle,
@@ -23,7 +19,7 @@ impl Editor {
         };
     }
 
-    fn temp(&mut self, _: &ExampleEditorAction, context: &mut ViewContext<Self>) {
+    fn temp(&mut self, _: &ExampleEditorAction, _context: &mut ViewContext<Self>) {
         println!("Pressed: a");
     }
 }
@@ -83,7 +79,7 @@ impl Element for EditorElement {
 
     fn request_layout(
         &mut self,
-        id: Option<&gpui::GlobalElementId>,
+        _id: Option<&gpui::GlobalElementId>,
         context: &mut gpui::WindowContext,
     ) -> (gpui::LayoutId, Self::RequestLayoutState) {
         let style = Style::default();
@@ -93,60 +89,41 @@ impl Element for EditorElement {
 
     fn prepaint(
         &mut self,
-        id: Option<&gpui::GlobalElementId>,
+        _id: Option<&gpui::GlobalElementId>,
         bounds: gpui::Bounds<gpui::Pixels>,
-        request_layout: &mut Self::RequestLayoutState,
+        _request_layout: &mut Self::RequestLayoutState,
         context: &mut gpui::WindowContext,
     ) -> Self::PrepaintState {
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
 
-        let text = "This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.";
+        let text = "## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n\n### Another headline\n\nYo, some more text";
 
-        let nodes = vec![
-            Node::Headline(Headline {
-                start: 0,
-                end: 18,
-                decorations: vec![Span {
-                    start: 10,
-                    end: 18,
-                    weight: FontWeight::NORMAL,
-                    style: FontStyle::Italic,
-                }],
-            }),
-            Node::Paragraph(Paragraph {
-                start: 18,
-                end: 100,
-                decorations: vec![
-                    Span {
-                        start: 50,
-                        end: 54,
-                        weight: FontWeight::EXTRA_BOLD,
-                        style: FontStyle::Normal,
-                    },
-                    Span {
-                        start: 66,
-                        end: 72,
-                        weight: FontWeight::NORMAL,
-                        style: FontStyle::Italic,
-                    },
-                    Span {
-                        start: 82,
-                        end: 87,
-                        weight: FontWeight::EXTRA_BOLD,
-                        style: FontStyle::Normal,
-                    },
-                    Span {
-                        start: 87,
-                        end: 92,
-                        weight: FontWeight::EXTRA_BOLD,
-                        style: FontStyle::Italic,
-                    },
-                ],
-            }),
-        ];
+        let mut spans: Vec<TextSpan> = vec![];
+        let mut offset = 0;
 
-        let runs = get_text_runs(nodes, style.font());
+        for line in text.lines() {
+            if !line.is_empty() {
+                if line.starts_with('#') {
+                    let level = line
+                        .chars()
+                        .take_while(|&character| character == '#')
+                        .count();
+
+                    spans.push(TextSpan {
+                        start: offset,
+                        length: line.len(),
+                        kind: TextSpanType::Headline,
+                    });
+                }
+
+                offset += line.len();
+            }
+
+            offset += 1; // Newline character
+        }
+
+        let runs = get_text_runs_from_spans(text, spans, style.font());
 
         let lines = context
             .text_system()
@@ -198,43 +175,73 @@ impl Element for EditorElement {
     }
 }
 
-enum Node {
-    Headline(Headline),
-    Paragraph(Paragraph),
-}
-
-struct Headline {
+#[derive(Debug, Clone, Copy)]
+struct TextSpan {
     start: usize,
-    end: usize,
-    decorations: Vec<Span>,
+    length: usize,
+    kind: TextSpanType,
 }
 
-struct Paragraph {
-    start: usize,
-    end: usize,
-    decorations: Vec<Span>,
+#[derive(Debug, Clone, Copy)]
+enum TextSpanType {
+    Normal,
+    Headline,
 }
 
-struct Span {
-    start: usize,
-    end: usize,
-    weight: FontWeight,
-    style: FontStyle,
-}
+fn get_text_runs_from_spans(content: &str, spans: Vec<TextSpan>, font: Font) -> Vec<TextRun> {
+    if spans.len() == 0 {
+        return vec![TextRun {
+            len: content.len(),
+            font: font.clone(),
+            color: Hsla::from(rgb(COLOR_GRAY_700)),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        }];
+    }
 
-fn get_text_runs_for_headline(node: Headline, font: Font) -> Vec<TextRun> {
-    let mut runs = Vec::new();
-    let mut current_pos = node.start;
+    let mut normal_spans: Vec<TextSpan> = vec![];
 
-    // Sort decorations by start position for sequential processing
-    let mut decorations = node.decorations;
-    decorations.sort_by_key(|span| span.start);
+    let mut position = 0;
 
-    for span in decorations {
-        // If there's a gap before the decoration, add a base run
-        if current_pos < span.start {
-            runs.push(TextRun {
-                len: span.start - current_pos,
+    for span in &spans {
+        if position < span.start {
+            normal_spans.push(TextSpan {
+                start: position,
+                length: span.start - position,
+                kind: TextSpanType::Normal,
+            });
+        }
+
+        position = position.max(span.start + span.length)
+    }
+
+    if position < content.len() {
+        normal_spans.push(TextSpan {
+            start: position,
+            length: content.len() - position,
+            kind: TextSpanType::Normal,
+        });
+    }
+
+    let mut all_spans: Vec<TextSpan> = spans.clone();
+    all_spans.append(&mut normal_spans);
+    all_spans.sort_by_key(|span| span.start);
+
+    let mut runs: Vec<TextRun> = vec![];
+
+    for span in all_spans {
+        let run = match span.kind {
+            TextSpanType::Normal => TextRun {
+                len: span.length,
+                font: font.clone(),
+                color: Hsla::from(rgb(COLOR_GRAY_700)),
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            },
+            TextSpanType::Headline => TextRun {
+                len: span.length,
                 font: Font {
                     weight: FontWeight::EXTRA_BOLD,
                     ..font.clone()
@@ -243,112 +250,13 @@ fn get_text_runs_for_headline(node: Headline, font: Font) -> Vec<TextRun> {
                 background_color: None,
                 underline: None,
                 strikethrough: None,
-            });
-        }
-
-        // Add the decorated run
-        runs.push(TextRun {
-            len: span.end - span.start,
-            font: Font {
-                style: span.style,
-                weight: FontWeight::EXTRA_BOLD,
-                ..font.clone()
             },
-            color: Hsla::from(rgb(COLOR_GRAY_800)),
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-        });
+        };
 
-        current_pos = span.end;
+        runs.push(run);
     }
 
-    // If there's remaining text after the last decoration, add a final base run
-    if current_pos < node.end {
-        runs.push(TextRun {
-            len: node.end - current_pos,
-            font: Font {
-                weight: FontWeight::EXTRA_BOLD,
-                ..font
-            },
-            color: Hsla::from(rgb(COLOR_GRAY_800)),
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-        });
-    }
-
-    runs
-}
-
-fn get_text_runs_for_paragraph(node: Paragraph, font: Font) -> Vec<TextRun> {
-    let mut runs = Vec::new();
-    let mut current_pos = node.start;
-
-    // Sort decorations by start position for sequential processing
-    let mut decorations = node.decorations;
-    decorations.sort_by_key(|span| span.start);
-
-    for span in decorations {
-        // If there's a gap before the decoration, add a base run
-        if current_pos < span.start {
-            runs.push(TextRun {
-                len: span.start - current_pos,
-                font: font.clone(),
-                color: Hsla::from(rgb(COLOR_GRAY_700)),
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            });
-        }
-
-        // Add the decorated run
-        runs.push(TextRun {
-            len: span.end - span.start,
-            font: Font {
-                weight: span.weight,
-                style: span.style,
-                ..font.clone()
-            },
-            color: Hsla::from(rgb(COLOR_GRAY_700)),
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-        });
-
-        current_pos = span.end;
-    }
-
-    // If there's remaining text after the last decoration, add a final base run
-    if current_pos < node.end {
-        runs.push(TextRun {
-            len: node.end - current_pos,
-            font: font.clone(),
-            color: Hsla::from(rgb(COLOR_GRAY_700)),
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-        });
-    }
-
-    runs
-}
-
-fn get_text_runs_for_node(node: Node, font: Font) -> Vec<TextRun> {
-    match node {
-        Node::Headline(node) => get_text_runs_for_headline(node, font),
-        Node::Paragraph(node) => get_text_runs_for_paragraph(node, font),
-    }
-}
-
-fn get_text_runs(nodes: Vec<Node>, font: Font) -> Vec<TextRun> {
-    let mut runs: Vec<TextRun> = vec![];
-
-    for node in nodes {
-        let node_runs = get_text_runs_for_node(node, font.clone());
-
-        runs.extend(node_runs);
-    }
+    // println!("RUNS: {:?}", runs);
 
     return runs;
 }
