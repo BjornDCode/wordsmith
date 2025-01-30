@@ -67,6 +67,7 @@ impl IntoElement for EditorElement {
 struct PrepaintState {
     lines: Option<Vec<WrappedLine>>,
     cursor: Option<PaintQuad>,
+    display_map: DisplayMap,
 }
 
 impl Element for EditorElement {
@@ -101,12 +102,16 @@ impl Element for EditorElement {
 
         let mut spans: Vec<TextSpan> = vec![];
         let mut offset = 0;
-        let mut display_map: Vec<DisplayMapRange> = vec![];
+        let mut display_map = DisplayMap {
+            hidden: vec![],
+            headlines: vec![],
+        };
 
-        for line in text.lines() {
+        for (index, line) in text.lines().enumerate() {
             if !line.is_empty() {
                 if line.starts_with('#') {
                     let removed_count: usize = display_map
+                        .hidden
                         .iter()
                         .map(|range| range.start + range.length)
                         .sum();
@@ -116,9 +121,14 @@ impl Element for EditorElement {
                         .take_while(|&character| character == '#')
                         .count();
 
-                    display_map.push(DisplayMapRange {
+                    display_map.hidden.push(HiddenDisplayMapRange {
                         start: offset,
                         length: level + 1,
+                    });
+
+                    display_map.headlines.push(HeadingLine {
+                        line_index: index,
+                        level,
                     });
 
                     spans.push(TextSpan {
@@ -134,7 +144,7 @@ impl Element for EditorElement {
             offset += 1; // Newline character
         }
 
-        let prepared_content = apply_display_map(text, display_map);
+        let prepared_content = apply_display_map(text, display_map.clone());
         let runs = get_text_runs_from_spans(&prepared_content, spans, style.font());
 
         let lines = context
@@ -157,6 +167,7 @@ impl Element for EditorElement {
         PrepaintState {
             lines: Some(lines),
             cursor: Some(cursor),
+            display_map,
         }
     }
 
@@ -170,6 +181,7 @@ impl Element for EditorElement {
     ) {
         let focus_handle = self.input.read(context).focus_handle.clone();
         let lines = prepaint.lines.take().unwrap().into_iter().enumerate();
+        let display_map = prepaint.display_map.clone();
 
         for (index, line) in lines {
             let point = Point::new(
@@ -177,6 +189,21 @@ impl Element for EditorElement {
                 bounds.origin.y + (context.line_height() * index),
             );
             line.paint(point, context.line_height(), context).unwrap();
+        }
+
+        for headline in display_map.headlines {
+            let width = px(16. * headline.level as f32);
+            let rect = fill(
+                Bounds::new(
+                    point(
+                        bounds.origin.x - width - px(16.),
+                        bounds.origin.y + (context.line_height() * headline.line_index) + px(4.),
+                    ),
+                    size(width, px(16.)),
+                ),
+                rgb(COLOR_GRAY_800),
+            );
+            context.paint_quad(rect);
         }
 
         if focus_handle.is_focused(context) {
@@ -200,10 +227,22 @@ enum TextSpanType {
     Headline,
 }
 
+#[derive(Debug, Clone)]
+struct DisplayMap {
+    hidden: Vec<HiddenDisplayMapRange>,
+    headlines: Vec<HeadingLine>,
+}
+
 #[derive(Debug, Clone, Copy)]
-struct DisplayMapRange {
+struct HiddenDisplayMapRange {
     start: usize,
     length: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct HeadingLine {
+    line_index: usize,
+    level: usize,
 }
 
 fn get_text_runs_from_spans(content: &String, spans: Vec<TextSpan>, font: Font) -> Vec<TextRun> {
@@ -277,12 +316,12 @@ fn get_text_runs_from_spans(content: &String, spans: Vec<TextSpan>, font: Font) 
     return runs;
 }
 
-fn apply_display_map(content: &str, display_map: Vec<DisplayMapRange>) -> String {
+fn apply_display_map(content: &str, display_map: DisplayMap) -> String {
     let mut modified = String::from(content);
 
     let mut count = 0;
 
-    for range in display_map {
+    for range in display_map.hidden {
         modified.drain(range.start - count..range.start + range.length - count);
         count += range.length;
     }
