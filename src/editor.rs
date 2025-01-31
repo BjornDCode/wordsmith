@@ -126,7 +126,7 @@ impl Element for EditorElement {
         let blocks = content.blocks();
         let display_content = content.to_display_content();
 
-        let runs = get_text_runs_from_blocks(blocks, style.font().clone());
+        let runs = get_text_runs_from_blocks(&blocks, style.font().clone());
 
         let lines = context
             .text_system()
@@ -136,21 +136,26 @@ impl Element for EditorElement {
 
         let mut headline_rectangles = vec![];
 
-        // for headline in display_map.headlines {
-        //     let width = px(16. * headline.level as f32);
-        //     let rect = fill(
-        //         Bounds::new(
-        //             point(
-        //                 bounds.origin.x - width - px(16.),
-        //                 bounds.origin.y + (context.line_height() * headline.line_index) + px(4.),
-        //             ),
-        //             size(width, px(16.)),
-        //         ),
-        //         rgb(COLOR_GRAY_800),
-        //     );
+        for block in blocks {
+            if let Block::Headline(headline) = block {
+                let width = px(16. * headline.level.length() as f32);
 
-        //     headline_rectangles.push(rect);
-        // }
+                let rect = fill(
+                    Bounds::new(
+                        point(
+                            bounds.origin.x - width - px(16.),
+                            bounds.origin.y
+                                + (context.line_height() * headline.original_line_index)
+                                + px(4.),
+                        ),
+                        size(width, px(16.)),
+                    ),
+                    rgb(COLOR_GRAY_800),
+                );
+
+                headline_rectangles.push(rect);
+            }
+        }
 
         let character_width = 10.;
 
@@ -209,7 +214,7 @@ impl Element for EditorElement {
     }
 }
 
-fn get_text_runs_from_blocks(blocks: Vec<Block>, font: Font) -> Vec<TextRun> {
+fn get_text_runs_from_blocks(blocks: &Vec<Block>, font: Font) -> Vec<TextRun> {
     let mut runs: Vec<TextRun> = vec![];
 
     for block in blocks {

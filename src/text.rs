@@ -28,6 +28,7 @@ impl Text {
     pub fn blocks(&self) -> Vec<Block> {
         let mut blocks: Vec<Block> = Vec::new();
         let mut offset = 0;
+        let mut line_index = 0;
 
         let mut lines = self.lines();
 
@@ -43,6 +44,7 @@ impl Text {
             if line == "" {
                 blocks.push(Block::Newline);
                 offset += 1;
+                line_index += 1;
 
                 continue;
             }
@@ -57,6 +59,7 @@ impl Text {
                     start: offset,
                     length: line.len(),
                     level: HeadlineLevel::from(level),
+                    original_line_index: line_index,
                 });
 
                 blocks.push(block);
@@ -64,6 +67,7 @@ impl Text {
 
                 blocks.push(Block::Newline);
                 offset += 1;
+                line_index += 1;
 
                 continue;
             }
@@ -72,6 +76,7 @@ impl Text {
             let block = Block::Paragraph(Paragraph {
                 start: offset,
                 length: line.len(),
+                original_line_index: line_index,
             });
 
             blocks.push(block);
@@ -79,6 +84,7 @@ impl Text {
 
             blocks.push(Block::Newline);
             offset += 1;
+            line_index += 1;
         }
 
         return blocks;
@@ -169,10 +175,12 @@ pub struct Headline {
     pub start: usize,
     pub length: usize,
     pub level: HeadlineLevel,
+    pub original_line_index: usize,
 }
 
 #[derive(Debug)]
 pub struct Paragraph {
     pub start: usize,
     pub length: usize,
+    pub original_line_index: usize,
 }
