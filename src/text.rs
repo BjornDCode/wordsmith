@@ -97,9 +97,14 @@ impl Text {
     }
 
     pub fn get_line_length(&self, line_index: usize) -> usize {
-        let line = self.lines().nth(line_index).unwrap();
+        let blocks = self.blocks();
+        let block = blocks.get(line_index);
 
-        line.len()
+        if let Some(block) = block {
+            return block.length();
+        } else {
+            return 0;
+        }
     }
 }
 
@@ -132,6 +137,15 @@ impl Block {
         let slice = &content[start..start + length];
 
         return String::from(slice);
+    }
+
+    // Note: This is likely to change once we have soft-wrapping
+    pub fn length(&self) -> usize {
+        match self {
+            Block::Newline => 0,
+            Block::Headline(headline) => headline.length - headline.level.length() - 1,
+            Block::Paragraph(paragraph) => paragraph.length,
+        }
     }
 }
 
