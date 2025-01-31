@@ -1,4 +1,5 @@
 mod editor;
+mod text;
 
 use std::{fs, path::PathBuf};
 

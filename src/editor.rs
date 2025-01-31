@@ -4,11 +4,11 @@ use gpui::{
     View, ViewContext, WrappedLine,
 };
 
-use crate::{MoveLeft, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK};
+use crate::{text::Text, MoveLeft, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK};
 
 pub struct Editor {
     focus_handle: FocusHandle,
-    content: SharedString,
+    content: Text,
     cursor_position: CursorPosition,
 }
 
@@ -21,7 +21,7 @@ impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         return Editor {
             focus_handle,
-            content: "## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n\n### Another headline\n\nYo, some more text".into(),
+            content: Text::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n\n### Another headline\n\nYo, some more text"),
             cursor_position: CursorPosition { x: 5, y: 2 }
         };
     }
@@ -339,8 +339,8 @@ fn get_text_runs_from_spans(content: &String, spans: Vec<TextSpan>, font: Font) 
     return runs;
 }
 
-fn apply_display_map(content: SharedString, display_map: DisplayMap) -> String {
-    let mut modified = String::from(content);
+fn apply_display_map(content: Text, display_map: DisplayMap) -> String {
+    let mut modified = content.to_string();
 
     let mut count = 0;
 
