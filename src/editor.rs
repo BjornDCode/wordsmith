@@ -1,14 +1,20 @@
 use gpui::{
-    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    Font, FontWeight, Hsla, PaintQuad, Point, Render, SharedString, Style, TextRun, View,
-    ViewContext, WrappedLine,
+    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, CursorStyle, FocusHandle,
+    FocusableView, Font, FontWeight, Hsla, PaintQuad, Point, Render, SharedString, Style, TextRun,
+    View, ViewContext, WrappedLine,
 };
 
-use crate::{ExampleEditorAction, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK};
+use crate::{MoveLeft, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK};
 
 pub struct Editor {
     focus_handle: FocusHandle,
     content: SharedString,
+    cursor_position: CursorPosition,
+}
+
+struct CursorPosition {
+    x: usize,
+    y: usize,
 }
 
 impl Editor {
@@ -16,11 +22,14 @@ impl Editor {
         return Editor {
             focus_handle,
             content: "## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n\n### Another headline\n\nYo, some more text".into(),
+            cursor_position: CursorPosition { x: 5, y: 2 }
         };
     }
 
-    fn temp(&mut self, _: &ExampleEditorAction, _context: &mut ViewContext<Self>) {
-        println!("Pressed: a");
+    fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
+        self.cursor_position.x -= 1;
+
+        context.notify();
     }
 }
 
@@ -35,7 +44,7 @@ impl Render for Editor {
         div()
             .track_focus(&self.focus_handle(context))
             .key_context("editor")
-            .on_action(context.listener(Self::temp))
+            .on_action(context.listener(Self::move_left))
             .pt_8()
             .group("editor-container")
             .child(
@@ -153,17 +162,6 @@ impl Element for EditorElement {
             .unwrap()
             .to_vec();
 
-        let cursor = fill(
-            Bounds::new(
-                point(
-                    px((bounds.left().to_f64() + 20. - 1.) as f32),
-                    px((bounds.top().to_f64() + 4.) as f32),
-                ),
-                size(px(2.), px(16.)),
-            ),
-            rgb(COLOR_BLUE_DARK),
-        );
-
         let mut headline_rectangles = vec![];
 
         for headline in display_map.headlines {
@@ -181,6 +179,24 @@ impl Element for EditorElement {
 
             headline_rectangles.push(rect);
         }
+
+        let character_width = 10.;
+
+        let cursor = fill(
+            Bounds::new(
+                point(
+                    px(
+                        (bounds.left().to_f64() + character_width * input.cursor_position.x as f64
+                            - 1.) as f32,
+                    ),
+                    px((bounds.top().to_f64()
+                        + context.line_height().to_f64() * input.cursor_position.y as f64
+                        + 4.) as f32),
+                ),
+                size(px(2.), px(16.)),
+            ),
+            rgb(COLOR_BLUE_DARK),
+        );
 
         PrepaintState {
             lines: Some(lines),

@@ -5,8 +5,8 @@ use std::{fs, path::PathBuf};
 use editor::Editor;
 use gpui::{
     actions, div, impl_actions, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource,
-    Bounds, FocusHandle, FocusableView, KeyBinding, MouseButton, MouseDownEvent, SharedString,
-    View, ViewContext, WindowBounds, WindowOptions,
+    Bounds, FocusHandle, FocusableView, KeyBinding, MouseButton, SharedString, View, ViewContext,
+    WindowBounds, WindowOptions,
 };
 
 const COLOR_WHITE: u32 = 0xffffff;
@@ -29,7 +29,7 @@ const COLOR_BLUE_LIGHT: u32 = 0xe0f2fe;
 const COLOR_BLUE_MEDIUM: u32 = 0x7dd3fc;
 const COLOR_BLUE_DARK: u32 = 0x0ea5e9;
 
-actions!(app, [Quit, ToggleSidebar, ExampleEditorAction]);
+actions!(app, [Quit, ToggleSidebar, MoveLeft]);
 impl_actions!(app, [SetMode]);
 
 #[derive(Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
@@ -57,7 +57,7 @@ fn main() {
                 KeyBinding::new("cmd-1", SetMode::mode(Mode::Outline), None),
                 KeyBinding::new("cmd-2", SetMode::mode(Mode::Write), None),
                 KeyBinding::new("cmd-3", SetMode::mode(Mode::Edit), None),
-                KeyBinding::new("a", ExampleEditorAction, "editor".into()),
+                KeyBinding::new("left", MoveLeft, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());
