@@ -123,29 +123,9 @@ impl Element for EditorElement {
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
 
-        // let spans = content.get_spans();
-        // let prepared_content = content.get_display_content();
-        // let runs = get_text_runs_from_spans(&prepared_content, spans, style.font());
-        // let runs = get_text_runs_from_spans(content, spans, font)
-
-        // let display_content = content.get_display_content();
-        let display_content = content.to_string();
         let blocks = content.blocks();
-        // let blocks = vec![
-        //     Block::Headline(Headline {
-        //         start: 0,
-        //         length: 21,
-        //         level: HeadlineLevel::H2,
-        //     }),
-        //     Block::Gap(Gap {
-        //         start: 21,
-        //         length: 2,
-        //     }),
-        //     Block::Paragraph(Paragraph {
-        //         start: 23,
-        //         length: 40,
-        //     }),
-        // ];
+        let display_content = content.to_display_content();
+
         let runs = get_text_runs_from_blocks(blocks, style.font().clone());
 
         let lines = context
@@ -229,77 +209,6 @@ impl Element for EditorElement {
     }
 }
 
-// fn get_text_runs_from_spans_x(content: &String, spans: Vec<TextSpan>, font: Font) -> Vec<TextRun> {
-//     if spans.len() == 0 {
-//         return vec![TextRun {
-//             len: content.len(),
-//             font: font.clone(),
-//             color: Hsla::from(rgb(COLOR_GRAY_700)),
-//             background_color: None,
-//             underline: None,
-//             strikethrough: None,
-//         }];
-//     }
-
-//     let mut normal_spans: Vec<TextSpan> = vec![];
-
-//     let mut position = 0;
-
-//     for span in &spans {
-//         if position < span.start {
-//             normal_spans.push(TextSpan {
-//                 start: position,
-//                 length: span.start - position,
-//                 kind: TextSpanType::Normal,
-//             });
-//         }
-
-//         position = position.max(span.start + span.length)
-//     }
-
-//     if position < content.len() {
-//         normal_spans.push(TextSpan {
-//             start: position,
-//             length: content.len() - position,
-//             kind: TextSpanType::Normal,
-//         });
-//     }
-
-//     let mut all_spans: Vec<TextSpan> = spans.clone();
-//     all_spans.append(&mut normal_spans);
-//     all_spans.sort_by_key(|span| span.start);
-
-//     let mut runs: Vec<TextRun> = vec![];
-
-//     for span in all_spans {
-//         let run = match span.kind {
-//             TextSpanType::Normal => TextRun {
-//                 len: span.length,
-//                 font: font.clone(),
-//                 color: Hsla::from(rgb(COLOR_GRAY_700)),
-//                 background_color: None,
-//                 underline: None,
-//                 strikethrough: None,
-//             },
-//             TextSpanType::Headline => TextRun {
-//                 len: span.length,
-//                 font: Font {
-//                     weight: FontWeight::EXTRA_BOLD,
-//                     ..font.clone()
-//                 },
-//                 color: Hsla::from(rgb(COLOR_GRAY_800)),
-//                 background_color: None,
-//                 underline: None,
-//                 strikethrough: None,
-//             },
-//         };
-
-//         runs.push(run);
-//     }
-
-//     return runs;
-// }
-
 fn get_text_runs_from_blocks(blocks: Vec<Block>, font: Font) -> Vec<TextRun> {
     let mut runs: Vec<TextRun> = vec![];
 
@@ -322,7 +231,7 @@ fn get_text_runs_from_blocks(blocks: Vec<Block>, font: Font) -> Vec<TextRun> {
                 strikethrough: None,
             },
             Block::Headline(block) => TextRun {
-                len: block.length,
+                len: block.length - block.level.length() - 1,
                 font: Font {
                     weight: FontWeight::EXTRA_BOLD,
                     ..font.clone()

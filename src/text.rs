@@ -2,24 +2,27 @@ use core::panic;
 
 use gpui::SharedString;
 
-// use crate::display_map::DisplayMap;
-
 #[derive(Clone)]
 pub struct Text {
     content: SharedString,
-    // display_map: DisplayMap,
 }
 
 impl Text {
     pub fn new(content: impl Into<SharedString>) -> Text {
         Text {
             content: content.into(),
-            // display_map: DisplayMap::new(),
         }
     }
 
-    pub fn to_string(&self) -> String {
-        self.content.to_string()
+    pub fn to_display_content(&self) -> String {
+        let blocks = self.blocks();
+        let mut output = String::new();
+
+        for block in blocks {
+            output += &block.to_display_content(&self.content);
+        }
+
+        return output;
     }
 
     pub fn blocks(&self) -> Vec<Block> {
@@ -82,54 +85,6 @@ impl Text {
     }
 }
 
-// Rendering
-impl Text {
-    // pub fn get_spans(&mut self) -> Vec<TextSpan> {
-    //     let mut spans: Vec<TextSpan> = vec![];
-    //     let mut offset = 0;
-
-    //     for (index, line) in self.lines().enumerate() {
-    //         if !line.is_empty() {
-    //             if line.starts_with('#') {
-    //                 let removed_count = &self.display_map.get_removed_count();
-    //                 let level = line
-    //                     .chars()
-    //                     .take_while(|&character| character == '#')
-    //                     .count();
-
-    //                 self.display_map.push_hidden_range(offset, level + 1);
-    //                 self.display_map.push_headline(index, level);
-
-    //                 spans.push(TextSpan {
-    //                     start: offset - removed_count,
-    //                     length: line.len() - level - 1,
-    //                     kind: TextSpanType::Headline,
-    //                 });
-    //             }
-
-    //             offset += line.len();
-    //         }
-
-    //         offset += 1; // Newline character
-    //     }
-
-    //     return spans;
-    // }
-
-    // pub fn get_display_content(&self) -> String {
-    //     let mut modified = &self.content.to_string();
-
-    //     let mut count = 0;
-
-    //     for range in &self.display_map.hidden {
-    //         modified.drain(range.start - count..range.start + range.length - count);
-    //         count += range.length;
-    //     }
-
-    //     return modified;
-    // }
-}
-
 impl Text {
     pub fn lines(&self) -> std::str::Lines<'_> {
         self.content.lines()
@@ -142,24 +97,36 @@ impl Text {
     }
 }
 
-// #[derive(Debug, Clone, Copy)]
-// struct TextSpan {
-//     start: usize,
-//     length: usize,
-//     kind: TextSpanType,
-// }
-
-// #[derive(Debug, Clone, Copy)]
-// enum TextSpanType {
-//     Normal,
-//     Headline,
-// }
-
 #[derive(Debug)]
 pub enum Block {
     Newline,
     Headline(Headline),
     Paragraph(Paragraph),
+}
+
+impl Block {
+    pub fn to_display_content(&self, content: &SharedString) -> String {
+        match self {
+            Block::Newline => "\n".into(),
+            Block::Headline(headline) => {
+                let level_length = headline.level.length() + 1;
+                Block::get_content_slice(
+                    content,
+                    headline.start + level_length,
+                    headline.length - level_length,
+                )
+            }
+            Block::Paragraph(paragraph) => {
+                Block::get_content_slice(content, paragraph.start, paragraph.length)
+            }
+        }
+    }
+
+    fn get_content_slice(content: &SharedString, start: usize, length: usize) -> String {
+        let slice = &content[start..start + length];
+
+        return String::from(slice);
+    }
 }
 
 #[derive(Debug)]
@@ -182,6 +149,17 @@ impl HeadlineLevel {
             5 => HeadlineLevel::H5,
             6 => HeadlineLevel::H6,
             _ => panic!("Invalid headline level: {}", number),
+        }
+    }
+
+    pub fn length(&self) -> usize {
+        match self {
+            HeadlineLevel::H1 => 1,
+            HeadlineLevel::H2 => 2,
+            HeadlineLevel::H3 => 3,
+            HeadlineLevel::H4 => 4,
+            HeadlineLevel::H5 => 5,
+            HeadlineLevel::H6 => 6,
         }
     }
 }
