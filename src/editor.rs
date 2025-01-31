@@ -1,10 +1,13 @@
 use gpui::{
-    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, CursorStyle, FocusHandle,
-    FocusableView, Font, FontWeight, Hsla, PaintQuad, Point, Render, SharedString, Style, TextRun,
-    View, ViewContext, WrappedLine,
+    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
+    Font, FontWeight, Hsla, PaintQuad, Point, Render, Style, TextRun, View, ViewContext,
+    WrappedLine,
 };
 
-use crate::{text::Text, MoveLeft, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK};
+use crate::{
+    text::{Block, Text},
+    MoveLeft, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
+};
 
 pub struct Editor {
     focus_handle: FocusHandle,
@@ -27,7 +30,18 @@ impl Editor {
     }
 
     fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
-        self.cursor_position.x -= 1;
+        if self.cursor_position.x == 0 {
+            if self.cursor_position.y == 0 {
+                self.cursor_position = CursorPosition { x: 0, y: 0 };
+            } else {
+                let new_y = self.cursor_position.y - 1;
+
+                self.cursor_position.y = new_y;
+                self.cursor_position.x = self.content.get_line_length(new_y);
+            }
+        } else {
+            self.cursor_position.x -= 1;
+        }
 
         context.notify();
     }
@@ -105,80 +119,58 @@ impl Element for EditorElement {
         context: &mut gpui::WindowContext,
     ) -> Self::PrepaintState {
         let input = self.input.read(context);
-        let text = input.content.clone();
+        let content = input.content.clone();
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
 
-        let mut spans: Vec<TextSpan> = vec![];
-        let mut offset = 0;
-        let mut display_map = DisplayMap {
-            hidden: vec![],
-            headlines: vec![],
-        };
+        // let spans = content.get_spans();
+        // let prepared_content = content.get_display_content();
+        // let runs = get_text_runs_from_spans(&prepared_content, spans, style.font());
+        // let runs = get_text_runs_from_spans(content, spans, font)
 
-        for (index, line) in text.lines().enumerate() {
-            if !line.is_empty() {
-                if line.starts_with('#') {
-                    let removed_count: usize = display_map
-                        .hidden
-                        .iter()
-                        .map(|range| range.start + range.length)
-                        .sum();
-
-                    let level = line
-                        .chars()
-                        .take_while(|&character| character == '#')
-                        .count();
-
-                    display_map.hidden.push(HiddenDisplayMapRange {
-                        start: offset,
-                        length: level + 1,
-                    });
-
-                    display_map.headlines.push(HeadingLine {
-                        line_index: index,
-                        level,
-                    });
-
-                    spans.push(TextSpan {
-                        start: offset - removed_count,
-                        length: line.len() - level - 1,
-                        kind: TextSpanType::Headline,
-                    });
-                }
-
-                offset += line.len();
-            }
-
-            offset += 1; // Newline character
-        }
-
-        let prepared_content = apply_display_map(text, display_map.clone());
-        let runs = get_text_runs_from_spans(&prepared_content, spans, style.font());
+        // let display_content = content.get_display_content();
+        let display_content = content.to_string();
+        let blocks = content.blocks();
+        // let blocks = vec![
+        //     Block::Headline(Headline {
+        //         start: 0,
+        //         length: 21,
+        //         level: HeadlineLevel::H2,
+        //     }),
+        //     Block::Gap(Gap {
+        //         start: 21,
+        //         length: 2,
+        //     }),
+        //     Block::Paragraph(Paragraph {
+        //         start: 23,
+        //         length: 40,
+        //     }),
+        // ];
+        let runs = get_text_runs_from_blocks(blocks, style.font().clone());
 
         let lines = context
             .text_system()
-            .shape_text(prepared_content.into(), font_size, &runs, Some(px(480.)))
+            .shape_text(display_content.into(), font_size, &runs, Some(px(480.)))
             .unwrap()
             .to_vec();
 
         let mut headline_rectangles = vec![];
 
-        for headline in display_map.headlines {
-            let width = px(16. * headline.level as f32);
-            let rect = fill(
-                Bounds::new(
-                    point(
-                        bounds.origin.x - width - px(16.),
-                        bounds.origin.y + (context.line_height() * headline.line_index) + px(4.),
-                    ),
-                    size(width, px(16.)),
-                ),
-                rgb(COLOR_GRAY_800),
-            );
+        // for headline in display_map.headlines {
+        //     let width = px(16. * headline.level as f32);
+        //     let rect = fill(
+        //         Bounds::new(
+        //             point(
+        //                 bounds.origin.x - width - px(16.),
+        //                 bounds.origin.y + (context.line_height() * headline.line_index) + px(4.),
+        //             ),
+        //             size(width, px(16.)),
+        //         ),
+        //         rgb(COLOR_GRAY_800),
+        //     );
 
-            headline_rectangles.push(rect);
-        }
+        //     headline_rectangles.push(rect);
+        // }
 
         let character_width = 10.;
 
@@ -237,91 +229,100 @@ impl Element for EditorElement {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct TextSpan {
-    start: usize,
-    length: usize,
-    kind: TextSpanType,
-}
+// fn get_text_runs_from_spans_x(content: &String, spans: Vec<TextSpan>, font: Font) -> Vec<TextRun> {
+//     if spans.len() == 0 {
+//         return vec![TextRun {
+//             len: content.len(),
+//             font: font.clone(),
+//             color: Hsla::from(rgb(COLOR_GRAY_700)),
+//             background_color: None,
+//             underline: None,
+//             strikethrough: None,
+//         }];
+//     }
 
-#[derive(Debug, Clone, Copy)]
-enum TextSpanType {
-    Normal,
-    Headline,
-}
+//     let mut normal_spans: Vec<TextSpan> = vec![];
 
-#[derive(Debug, Clone)]
-struct DisplayMap {
-    hidden: Vec<HiddenDisplayMapRange>,
-    headlines: Vec<HeadingLine>,
-}
+//     let mut position = 0;
 
-#[derive(Debug, Clone, Copy)]
-struct HiddenDisplayMapRange {
-    start: usize,
-    length: usize,
-}
+//     for span in &spans {
+//         if position < span.start {
+//             normal_spans.push(TextSpan {
+//                 start: position,
+//                 length: span.start - position,
+//                 kind: TextSpanType::Normal,
+//             });
+//         }
 
-#[derive(Debug, Clone, Copy)]
-struct HeadingLine {
-    line_index: usize,
-    level: usize,
-}
+//         position = position.max(span.start + span.length)
+//     }
 
-fn get_text_runs_from_spans(content: &String, spans: Vec<TextSpan>, font: Font) -> Vec<TextRun> {
-    if spans.len() == 0 {
-        return vec![TextRun {
-            len: content.len(),
-            font: font.clone(),
-            color: Hsla::from(rgb(COLOR_GRAY_700)),
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-        }];
-    }
+//     if position < content.len() {
+//         normal_spans.push(TextSpan {
+//             start: position,
+//             length: content.len() - position,
+//             kind: TextSpanType::Normal,
+//         });
+//     }
 
-    let mut normal_spans: Vec<TextSpan> = vec![];
+//     let mut all_spans: Vec<TextSpan> = spans.clone();
+//     all_spans.append(&mut normal_spans);
+//     all_spans.sort_by_key(|span| span.start);
 
-    let mut position = 0;
+//     let mut runs: Vec<TextRun> = vec![];
 
-    for span in &spans {
-        if position < span.start {
-            normal_spans.push(TextSpan {
-                start: position,
-                length: span.start - position,
-                kind: TextSpanType::Normal,
-            });
-        }
+//     for span in all_spans {
+//         let run = match span.kind {
+//             TextSpanType::Normal => TextRun {
+//                 len: span.length,
+//                 font: font.clone(),
+//                 color: Hsla::from(rgb(COLOR_GRAY_700)),
+//                 background_color: None,
+//                 underline: None,
+//                 strikethrough: None,
+//             },
+//             TextSpanType::Headline => TextRun {
+//                 len: span.length,
+//                 font: Font {
+//                     weight: FontWeight::EXTRA_BOLD,
+//                     ..font.clone()
+//                 },
+//                 color: Hsla::from(rgb(COLOR_GRAY_800)),
+//                 background_color: None,
+//                 underline: None,
+//                 strikethrough: None,
+//             },
+//         };
 
-        position = position.max(span.start + span.length)
-    }
+//         runs.push(run);
+//     }
 
-    if position < content.len() {
-        normal_spans.push(TextSpan {
-            start: position,
-            length: content.len() - position,
-            kind: TextSpanType::Normal,
-        });
-    }
+//     return runs;
+// }
 
-    let mut all_spans: Vec<TextSpan> = spans.clone();
-    all_spans.append(&mut normal_spans);
-    all_spans.sort_by_key(|span| span.start);
-
+fn get_text_runs_from_blocks(blocks: Vec<Block>, font: Font) -> Vec<TextRun> {
     let mut runs: Vec<TextRun> = vec![];
 
-    for span in all_spans {
-        let run = match span.kind {
-            TextSpanType::Normal => TextRun {
-                len: span.length,
+    for block in blocks {
+        let run = match block {
+            Block::Newline => TextRun {
+                len: 1,
                 font: font.clone(),
                 color: Hsla::from(rgb(COLOR_GRAY_700)),
                 background_color: None,
                 underline: None,
                 strikethrough: None,
             },
-            TextSpanType::Headline => TextRun {
-                len: span.length,
+            Block::Paragraph(block) => TextRun {
+                len: block.length,
+                font: font.clone(),
+                color: Hsla::from(rgb(COLOR_GRAY_700)),
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            },
+            Block::Headline(block) => TextRun {
+                len: block.length,
                 font: Font {
                     weight: FontWeight::EXTRA_BOLD,
                     ..font.clone()
@@ -337,17 +338,4 @@ fn get_text_runs_from_spans(content: &String, spans: Vec<TextSpan>, font: Font) 
     }
 
     return runs;
-}
-
-fn apply_display_map(content: Text, display_map: DisplayMap) -> String {
-    let mut modified = content.to_string();
-
-    let mut count = 0;
-
-    for range in display_map.hidden {
-        modified.drain(range.start - count..range.start + range.length - count);
-        count += range.length;
-    }
-
-    return modified;
 }
