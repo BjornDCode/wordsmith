@@ -15,7 +15,7 @@ impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         return Editor {
             focus_handle,
-            content: "Yo".into(),
+            content: "## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n\n### Another headline\n\nYo, some more text".into(),
         };
     }
 
@@ -95,10 +95,10 @@ impl Element for EditorElement {
         _request_layout: &mut Self::RequestLayoutState,
         context: &mut gpui::WindowContext,
     ) -> Self::PrepaintState {
+        let input = self.input.read(context);
+        let text = input.content.clone();
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
-
-        let text = "## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n\n### Another headline\n\nYo, some more text";
 
         let mut spans: Vec<TextSpan> = vec![];
         let mut offset = 0;
@@ -323,7 +323,7 @@ fn get_text_runs_from_spans(content: &String, spans: Vec<TextSpan>, font: Font) 
     return runs;
 }
 
-fn apply_display_map(content: &str, display_map: DisplayMap) -> String {
+fn apply_display_map(content: SharedString, display_map: DisplayMap) -> String {
     let mut modified = String::from(content);
 
     let mut count = 0;
