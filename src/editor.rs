@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
     Font, FontWeight, Hsla, PaintQuad, Point, Render, Style, TextRun, View, ViewContext,
@@ -16,8 +18,8 @@ pub struct Editor {
 }
 
 struct CursorPosition {
-    x: usize,
-    y: usize,
+    block_index: usize,
+    offset: usize,
 }
 
 impl Editor {
@@ -25,22 +27,25 @@ impl Editor {
         return Editor {
             focus_handle,
             content: Text::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n\n### Another headline\n\nYo, some more text"),
-            cursor_position: CursorPosition { x: 5, y: 2 }
+            cursor_position: CursorPosition { offset: 55, block_index: 2 }
         };
     }
 
     fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
-        if self.cursor_position.x == 0 {
-            if self.cursor_position.y == 0 {
-                self.cursor_position = CursorPosition { x: 0, y: 0 };
+        if self.cursor_position.offset == 0 {
+            if self.cursor_position.block_index == 0 {
+                self.cursor_position = CursorPosition {
+                    block_index: 0,
+                    offset: 0,
+                };
             } else {
-                let new_y = self.cursor_position.y - 1;
+                let new_y = self.cursor_position.block_index - 1;
 
-                self.cursor_position.y = new_y;
-                self.cursor_position.x = self.content.get_line_length(new_y);
+                self.cursor_position.block_index = new_y;
+                self.cursor_position.offset = self.content.get_line_length(new_y);
             }
         } else {
-            self.cursor_position.x -= 1;
+            self.cursor_position.offset -= 1;
         }
 
         context.notify();
@@ -88,7 +93,7 @@ impl IntoElement for EditorElement {
 }
 
 struct PrepaintState {
-    lines: Option<Vec<WrappedLine>>,
+    blocks: Option<Vec<WrappedLine>>,
     cursor: Option<PaintQuad>,
     headline_rectangles: Vec<PaintQuad>,
 }
@@ -128,12 +133,6 @@ impl Element for EditorElement {
 
         let runs = get_text_runs_from_blocks(&blocks, style.font().clone());
 
-        let lines = context
-            .text_system()
-            .shape_text(display_content.into(), font_size, &runs, Some(px(480.)))
-            .unwrap()
-            .to_vec();
-
         let mut headline_rectangles = vec![];
 
         for block in blocks {
@@ -157,18 +156,25 @@ impl Element for EditorElement {
             }
         }
 
-        let character_width = 10.;
+        let blocks = context
+            .text_system()
+            .shape_text(display_content.into(), font_size, &runs, Some(px(480.)))
+            .unwrap()
+            .to_vec();
+
+        let block = blocks.index(input.cursor_position.block_index);
+        let cursor_position = block
+            .position_for_index(input.cursor_position.offset, context.line_height())
+            .unwrap();
 
         let cursor = fill(
             Bounds::new(
                 point(
-                    px(
-                        (bounds.left().to_f64() + character_width * input.cursor_position.x as f64
-                            - 1.) as f32,
-                    ),
-                    px((bounds.top().to_f64()
-                        + context.line_height().to_f64() * input.cursor_position.y as f64
-                        + 4.) as f32),
+                    bounds.left() + cursor_position.x - px(1.),
+                    bounds.top()
+                        + context.line_height() * input.cursor_position.block_index
+                        + cursor_position.y
+                        + px(4.),
                 ),
                 size(px(2.), px(16.)),
             ),
@@ -176,7 +182,7 @@ impl Element for EditorElement {
         );
 
         PrepaintState {
-            lines: Some(lines),
+            blocks: Some(blocks),
             cursor: Some(cursor),
             headline_rectangles,
         }
@@ -191,15 +197,15 @@ impl Element for EditorElement {
         context: &mut gpui::WindowContext,
     ) {
         let focus_handle = self.input.read(context).focus_handle.clone();
-        let lines = prepaint.lines.take().unwrap().into_iter().enumerate();
+        let blocks = prepaint.blocks.take().unwrap().into_iter().enumerate();
         let headline_rectangles = prepaint.headline_rectangles.clone();
 
-        for (index, line) in lines {
+        for (index, block) in blocks {
             let point = Point::new(
                 bounds.origin.x,
                 bounds.origin.y + (context.line_height() * index),
             );
-            line.paint(point, context.line_height(), context).unwrap();
+            block.paint(point, context.line_height(), context).unwrap();
         }
 
         for rectangle in headline_rectangles {
