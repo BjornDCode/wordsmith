@@ -2,13 +2,12 @@ use std::ops::Index;
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    Font, FontWeight, Hsla, PaintQuad, Point, Render, Style, TextRun, View, ViewContext,
-    WrappedLine,
+    Font, FontWeight, Hsla, PaintQuad, Point, Style, TextRun, View, ViewContext, WrappedLine,
 };
 
 use crate::{
-    text::{Block, Text},
-    MoveLeft, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
+    text::{Block, Render, Size, Text},
+    MoveLeft, MoveRight, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
 };
 
 pub struct Editor {
@@ -26,26 +25,38 @@ impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         return Editor {
             focus_handle,
-            content: Text::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n\n### Another headline\n\nYo, some more text"),
-            cursor_position: CursorPosition { offset: 55, block_index: 2 }
+            content: Text::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text. This is a paragraph with some bold text, some italic text and some mixed text.\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n### Another headline\n\nYo, some more text\n\n## Headline"),
+            cursor_position: CursorPosition { offset: 12, block_index: 4 }
         };
     }
 
     fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
         if self.cursor_position.offset == 0 {
-            if self.cursor_position.block_index == 0 {
-                self.cursor_position = CursorPosition {
-                    block_index: 0,
-                    offset: 0,
-                };
-            } else {
+            if self.cursor_position.block_index > 0 {
                 let new_y = self.cursor_position.block_index - 1;
 
                 self.cursor_position.block_index = new_y;
-                self.cursor_position.offset = self.content.get_line_length(new_y);
+                self.cursor_position.offset = self.content.get_block_length(new_y);
             }
         } else {
             self.cursor_position.offset -= 1;
+        }
+
+        context.notify();
+    }
+
+    fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
+        let block_length = self
+            .content
+            .get_block_length(self.cursor_position.block_index);
+
+        if self.cursor_position.offset == block_length {
+            if self.cursor_position.block_index + 1 < self.content.blocks().len() {
+                self.cursor_position.block_index += 1;
+                self.cursor_position.offset = 0;
+            }
+        } else {
+            self.cursor_position.offset += 1;
         }
 
         context.notify();
@@ -58,12 +69,13 @@ impl FocusableView for Editor {
     }
 }
 
-impl Render for Editor {
+impl gpui::Render for Editor {
     fn render(&mut self, context: &mut gpui::ViewContext<Self>) -> impl gpui::IntoElement {
         div()
             .track_focus(&self.focus_handle(context))
             .key_context("editor")
             .on_action(context.listener(Self::move_left))
+            .on_action(context.listener(Self::move_right))
             .pt_8()
             .group("editor-container")
             .child(
@@ -128,14 +140,12 @@ impl Element for EditorElement {
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
 
-        let blocks = content.blocks();
-        let display_content = content.to_display_content();
-
-        let runs = get_text_runs_from_blocks(&blocks, style.font().clone());
+        let mut blocks = content.blocks();
 
         let mut headline_rectangles = vec![];
+        let mut line_count = 0;
 
-        for block in blocks {
+        for block in &mut blocks {
             if let Block::Headline(headline) = block {
                 let width = px(16. * headline.level.length() as f32);
 
@@ -143,9 +153,7 @@ impl Element for EditorElement {
                     Bounds::new(
                         point(
                             bounds.origin.x - width - px(16.),
-                            bounds.origin.y
-                                + (context.line_height() * headline.original_line_index)
-                                + px(4.),
+                            bounds.origin.y + (context.line_height() * line_count) + px(4.),
                         ),
                         size(width, px(16.)),
                     ),
@@ -154,25 +162,39 @@ impl Element for EditorElement {
 
                 headline_rectangles.push(rect);
             }
+
+            line_count += block.line_length(context.text_system(), style.font(), font_size);
         }
 
-        let blocks = context
-            .text_system()
-            .shape_text(display_content.into(), font_size, &runs, Some(px(480.)))
-            .unwrap()
-            .to_vec();
+        let content = blocks
+            .iter_mut()
+            .flat_map(|block| block.render(context.text_system(), style.font(), font_size))
+            .collect();
 
-        let block = blocks.index(input.cursor_position.block_index);
-        let cursor_position = block
+        let shaped_blocks = blocks
+            .get_mut(input.cursor_position.block_index)
+            .unwrap()
+            .render(context.text_system(), style.font(), font_size);
+        let shaped_block = shaped_blocks.index(0);
+        let cursor_position = shaped_block
             .position_for_index(input.cursor_position.offset, context.line_height())
             .unwrap();
+
+        let mut cursor_line_index = 0;
+
+        for (index, block) in blocks.iter_mut().enumerate() {
+            if index < input.cursor_position.block_index {
+                cursor_line_index +=
+                    block.line_length(context.text_system(), style.font(), font_size);
+            }
+        }
 
         let cursor = fill(
             Bounds::new(
                 point(
                     bounds.left() + cursor_position.x - px(1.),
                     bounds.top()
-                        + context.line_height() * input.cursor_position.block_index
+                        + context.line_height() * cursor_line_index
                         + cursor_position.y
                         + px(4.),
                 ),
@@ -182,7 +204,7 @@ impl Element for EditorElement {
         );
 
         PrepaintState {
-            blocks: Some(blocks),
+            blocks: Some(content),
             cursor: Some(cursor),
             headline_rectangles,
         }
@@ -197,15 +219,19 @@ impl Element for EditorElement {
         context: &mut gpui::WindowContext,
     ) {
         let focus_handle = self.input.read(context).focus_handle.clone();
-        let blocks = prepaint.blocks.take().unwrap().into_iter().enumerate();
+        let blocks = prepaint.blocks.take().unwrap().into_iter();
         let headline_rectangles = prepaint.headline_rectangles.clone();
 
-        for (index, block) in blocks {
+        let mut line_count = 0;
+        for block in blocks {
+            let line_length = block.wrap_boundaries.len() + 1;
             let point = Point::new(
                 bounds.origin.x,
-                bounds.origin.y + (context.line_height() * index),
+                bounds.origin.y + (context.line_height() * px(line_count as f32)),
             );
             block.paint(point, context.line_height(), context).unwrap();
+
+            line_count += line_length;
         }
 
         for rectangle in headline_rectangles {
@@ -218,44 +244,4 @@ impl Element for EditorElement {
             }
         }
     }
-}
-
-fn get_text_runs_from_blocks(blocks: &Vec<Block>, font: Font) -> Vec<TextRun> {
-    let mut runs: Vec<TextRun> = vec![];
-
-    for block in blocks {
-        let run = match block {
-            Block::Newline => TextRun {
-                len: 1,
-                font: font.clone(),
-                color: Hsla::from(rgb(COLOR_GRAY_700)),
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            Block::Paragraph(block) => TextRun {
-                len: block.length,
-                font: font.clone(),
-                color: Hsla::from(rgb(COLOR_GRAY_700)),
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-            Block::Headline(block) => TextRun {
-                len: block.length - block.level.length() - 1,
-                font: Font {
-                    weight: FontWeight::EXTRA_BOLD,
-                    ..font.clone()
-                },
-                color: Hsla::from(rgb(COLOR_GRAY_800)),
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            },
-        };
-
-        runs.push(run);
-    }
-
-    return runs;
 }
