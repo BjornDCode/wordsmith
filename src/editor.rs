@@ -2,12 +2,12 @@ use std::ops::Index;
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    Font, FontWeight, Hsla, PaintQuad, Point, Style, TextRun, View, ViewContext, WrappedLine,
+    PaintQuad, Pixels, Point, Style, View, ViewContext, WrappedLine,
 };
 
 use crate::{
     text::{Block, Render, Size, Text},
-    MoveLeft, MoveRight, COLOR_BLUE_DARK, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
+    MoveLeft, MoveRight, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK,
 };
 
 pub struct Editor {
@@ -26,7 +26,7 @@ impl Editor {
         return Editor {
             focus_handle,
             content: Text::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text. This is a paragraph with some bold text, some italic text and some mixed text.\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n### Another headline\n\nYo, some more text\n\n## Headline"),
-            cursor_position: CursorPosition { offset: 12, block_index: 4 }
+            cursor_position: CursorPosition { offset: 42, block_index: 4 }
         };
     }
 
@@ -176,9 +176,17 @@ impl Element for EditorElement {
             .unwrap()
             .render(context.text_system(), style.font(), font_size);
         let shaped_block = shaped_blocks.index(0);
-        let cursor_position = shaped_block
-            .position_for_index(input.cursor_position.offset, context.line_height())
-            .unwrap();
+        // let cursor_position = shaped_block
+        //     .position_for_index(input.cursor_position.offset, context.line_height())
+        //     .unwrap();
+        let cursor_position = position_for_index(
+            shaped_block,
+            input.cursor_position.offset,
+            context.line_height(),
+        )
+        .unwrap();
+
+        // println!("{:?}", cursor_position);
 
         let mut cursor_line_index = 0;
 
@@ -244,4 +252,47 @@ impl Element for EditorElement {
             }
         }
     }
+}
+
+fn position_for_index(
+    line: &WrappedLine,
+    index: usize,
+    line_height: Pixels,
+) -> Option<Point<Pixels>> {
+    let mut line_start_index = 0;
+    let line_end_indices = line
+        .wrap_boundaries
+        .iter()
+        .map(|wrap_boundary| {
+            let run = &line.unwrapped_layout.runs[wrap_boundary.run_ix];
+            let glyph = &run.glyphs[wrap_boundary.glyph_ix];
+            glyph.index
+        })
+        .chain([line.len()])
+        .enumerate();
+
+    for (i, line_end_index) in line_end_indices {
+        let line_y = i as f32 * line_height;
+        if index < line_start_index {
+            break;
+        } else if index > line_end_index {
+            line_start_index = line_end_index;
+
+            continue;
+        } else if index == line_end_index && index < line.len() {
+            // This condition is the patch to the original position_for_index
+            // We are basically checking whether the index is at the end of a soft-wrapped line
+
+            line_start_index = line_end_index;
+
+            continue;
+        } else {
+            let line_start_x = line.unwrapped_layout.x_for_index(line_start_index);
+            let x = line.unwrapped_layout.x_for_index(index) - line_start_x;
+
+            return Some(point(x, line_y));
+        }
+    }
+
+    None
 }
