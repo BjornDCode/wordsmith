@@ -34,7 +34,16 @@ const COLOR_BLUE_DARK: u32 = 0x0ea5e9;
 
 actions!(
     app,
-    [Quit, ToggleSidebar, MoveLeft, MoveRight, MoveUp, MoveDown]
+    [
+        Quit,
+        ToggleSidebar,
+        MoveLeft,
+        MoveRight,
+        MoveUp,
+        MoveDown,
+        MoveBeginningOfFile,
+        MoveEndOfFile,
+    ]
 );
 impl_actions!(app, [SetMode]);
 
@@ -67,6 +76,8 @@ fn main() {
                 KeyBinding::new("right", MoveRight, "editor".into()),
                 KeyBinding::new("up", MoveUp, "editor".into()),
                 KeyBinding::new("down", MoveDown, "editor".into()),
+                KeyBinding::new("cmd-up", MoveBeginningOfFile, "editor".into()),
+                KeyBinding::new("cmd-down", MoveEndOfFile, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());

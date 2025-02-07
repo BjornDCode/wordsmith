@@ -7,7 +7,10 @@ use gpui::{
 
 use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
-use crate::{MoveDown, MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK};
+use crate::{
+    MoveBeginningOfFile, MoveDown, MoveEndOfFile, MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK,
+    COLOR_GRAY_800, COLOR_PINK,
+};
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
 pub const CHARACTER_COUNT_PER_LINE: usize = 50;
@@ -158,6 +161,23 @@ impl Editor {
 
         context.notify();
     }
+
+    fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
+        self.cursor_position.block_index = 0;
+        self.cursor_position.offset = 0;
+
+        context.notify();
+    }
+
+    fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
+        let last_block_index = self.content.blocks().len() - 1;
+        let block = self.content.block(last_block_index);
+
+        self.cursor_position.block_index = last_block_index;
+        self.cursor_position.offset = block.length() - 1;
+
+        context.notify();
+    }
 }
 
 impl FocusableView for Editor {
@@ -175,6 +195,8 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_right))
             .on_action(context.listener(Self::move_up))
             .on_action(context.listener(Self::move_down))
+            .on_action(context.listener(Self::move_beginning_of_file))
+            .on_action(context.listener(Self::move_end_of_file))
             .pt_8()
             .group("editor-container")
             .child(
