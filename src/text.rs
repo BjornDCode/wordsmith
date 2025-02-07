@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use crate::editor::CHARACTER_COUNT_PER_LINE;
 
 #[derive(Debug, Clone)]
@@ -73,6 +75,13 @@ impl WrappedText {
         let (_, wrap_points) = self.to_string_with_wrap_points();
 
         return (self.lines(), wrap_points);
+    }
+
+    pub fn line(&self, line_index: usize) -> String {
+        let lines = self.lines();
+        let line = lines.index(line_index);
+
+        return line.clone();
     }
 
     pub fn length(&self) -> usize {

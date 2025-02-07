@@ -120,14 +120,14 @@ impl Block {
     }
 
     pub fn cursor_position(&self, offset: usize) -> Point {
-        let line_index = self.get_line_of_offset(offset);
-        let line_start = self.get_line_start(line_index);
+        let line_index = self.line_of_offset(offset);
+        let line_start = self.line_start(line_index);
         let remaining = offset - line_start;
 
         return Point::new(remaining, self.line_index() + line_index);
     }
 
-    fn get_line_of_offset(&self, offset: usize) -> usize {
+    pub fn line_of_offset(&self, offset: usize) -> usize {
         let (lines, wrap_points) = self.lines_and_wrap_points();
         let lines = lines.into_iter().enumerate();
         let mut line_index: usize = 0;
@@ -155,7 +155,7 @@ impl Block {
         return line_index;
     }
 
-    fn get_line_start(&self, line_index: usize) -> usize {
+    pub fn line_start(&self, line_index: usize) -> usize {
         let lines = self.lines().into_iter().enumerate();
         let mut offset = 0;
 
@@ -168,6 +168,12 @@ impl Block {
         }
 
         return offset;
+    }
+
+    pub fn offset_in_line(&self, line_index: usize, offset: usize) -> usize {
+        let line_start = self.line_start(line_index);
+
+        return offset - line_start;
     }
 }
 
@@ -352,6 +358,8 @@ pub trait Size {
 
     fn length(&self) -> usize;
 
+    fn length_of_line(&self, line_index: usize) -> usize;
+
     fn lines(&self) -> Vec<String>;
 
     fn lines_and_wrap_points(&self) -> (Vec<String>, Vec<usize>);
@@ -371,6 +379,14 @@ impl Size for Block {
             Block::Newline(newline) => newline.length(),
             Block::Paragraph(paragraph) => paragraph.length(),
             Block::Headline(headline) => headline.length(),
+        }
+    }
+
+    fn length_of_line(&self, line_index: usize) -> usize {
+        match self {
+            Block::Newline(newline) => newline.length_of_line(line_index),
+            Block::Paragraph(paragraph) => paragraph.length_of_line(line_index),
+            Block::Headline(headline) => headline.length_of_line(line_index),
         }
     }
 
@@ -409,6 +425,10 @@ impl Size for Newline {
 
         return (lines, vec![]);
     }
+
+    fn length_of_line(&self, _line_index: usize) -> usize {
+        return 0;
+    }
 }
 
 impl Size for Headline {
@@ -427,6 +447,12 @@ impl Size for Headline {
     fn lines_and_wrap_points(&self) -> (Vec<String>, Vec<usize>) {
         self.content.lines_and_wrap_points()
     }
+
+    fn length_of_line(&self, line_index: usize) -> usize {
+        let line = self.content.line(line_index);
+
+        return line.len();
+    }
 }
 
 impl Size for Paragraph {
@@ -444,5 +470,11 @@ impl Size for Paragraph {
 
     fn lines_and_wrap_points(&self) -> (Vec<String>, Vec<usize>) {
         self.content.lines_and_wrap_points()
+    }
+
+    fn length_of_line(&self, line_index: usize) -> usize {
+        let line = self.content.line(line_index);
+
+        return line.len();
     }
 }

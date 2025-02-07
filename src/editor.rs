@@ -5,9 +5,9 @@ use gpui::{
     PaintQuad, Pixels, Point, Style, View, ViewContext,
 };
 
-use crate::content::{Block, Content};
+use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
-use crate::{MoveLeft, MoveRight, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK};
+use crate::{MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK};
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
 pub const CHARACTER_COUNT_PER_LINE: usize = 50;
@@ -29,7 +29,7 @@ impl Editor {
         return Editor {
             focus_handle,
             content: Content::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text. This is a paragraph with some bold text, some italic text and some mixed text.\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
-            cursor_position: CursorPosition { offset:77, block_index: 4 }
+            cursor_position: CursorPosition { offset: 135, block_index: 2 }
         };
     }
 
@@ -64,6 +64,46 @@ impl Editor {
 
         context.notify();
     }
+
+    fn move_up(&mut self, _: &MoveUp, context: &mut ViewContext<Self>) {
+        let current_block = self.content.block(self.cursor_position.block_index);
+        let line_index_in_block = current_block.line_of_offset(self.cursor_position.offset);
+
+        if line_index_in_block == 0 {
+            if self.cursor_position.block_index > 0 {
+                let offset_in_current_line =
+                    current_block.offset_in_line(line_index_in_block, self.cursor_position.offset);
+                let new_block_index = self.cursor_position.block_index - 1;
+                self.cursor_position.block_index = new_block_index;
+
+                let previous_block = self.content.block(new_block_index);
+                let previous_block_line_length = previous_block.line_length();
+                let length_of_last_line_in_prevous_block =
+                    previous_block.length_of_line(previous_block_line_length - 1);
+
+                let offset =
+                    std::cmp::min(length_of_last_line_in_prevous_block, offset_in_current_line);
+
+                self.cursor_position.offset = offset;
+            } else {
+                self.cursor_position.offset = 0;
+            }
+        } else {
+            let offset_in_current_line =
+                current_block.offset_in_line(line_index_in_block, self.cursor_position.offset);
+
+            let previous_line_length = current_block.length_of_line(line_index_in_block - 1);
+            let previous_line_start = current_block.line_start(line_index_in_block - 1);
+            let offset = std::cmp::min(
+                previous_line_start + previous_line_length - 1,
+                previous_line_start + offset_in_current_line,
+            );
+
+            self.cursor_position.offset = offset;
+        }
+
+        context.notify()
+    }
 }
 
 impl FocusableView for Editor {
@@ -79,6 +119,7 @@ impl gpui::Render for Editor {
             .key_context("editor")
             .on_action(context.listener(Self::move_left))
             .on_action(context.listener(Self::move_right))
+            .on_action(context.listener(Self::move_up))
             .pt_8()
             .group("editor-container")
             .child(
