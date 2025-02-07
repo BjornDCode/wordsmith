@@ -90,6 +90,23 @@ impl WrappedText {
         return content.len() - wrap_points.len();
     }
 
+    pub fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
+        let (lines, wrap_points) = self.lines_and_wrap_points();
+
+        let lines = lines.into_iter().enumerate();
+        let mut offset = 0;
+
+        for (index, line) in lines {
+            offset += line.len();
+
+            if index == line_index {
+                break;
+            }
+        }
+
+        return wrap_points.contains(&offset);
+    }
+
     fn to_string_with_wrap_points(&self) -> (String, Vec<usize>) {
         let content = self.text.to_string();
 

@@ -31,8 +31,8 @@ struct CursorPosition {
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         let cursor_position = CursorPosition {
-            offset: 0,
-            block_index: 7,
+            offset: 133,
+            block_index: 2,
             preferred_x: 50,
         };
 
@@ -141,6 +141,15 @@ impl Editor {
                 let next_block = self.content.block(next_block_index);
 
                 let first_line_length = next_block.length_of_line(0);
+                let first_line_length = if first_line_length == 0 {
+                    0
+                } else {
+                    if next_block.is_soft_wrapped_line(0) {
+                        first_line_length - 1
+                    } else {
+                        first_line_length
+                    }
+                };
 
                 let preferred_offset = self.cursor_position.preferred_x;
 
@@ -154,10 +163,18 @@ impl Editor {
         } else {
             let next_line_start = block.line_start(line_index_in_block + 1);
             let next_line_length = block.length_of_line(line_index_in_block + 1);
+            let is_soft_wrapped_line = block.is_soft_wrapped_line(line_index_in_block + 1);
+            let modifier_value = match is_soft_wrapped_line {
+                true => 1,
+                false => 0,
+            };
 
             let preferred_offset = next_line_start + self.cursor_position.preferred_x;
 
-            let offset = std::cmp::min(next_line_start + next_line_length - 1, preferred_offset);
+            let offset = std::cmp::min(
+                next_line_start + next_line_length - modifier_value,
+                preferred_offset,
+            );
 
             self.cursor_position.offset = offset;
         }

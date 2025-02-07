@@ -363,6 +363,8 @@ pub trait Size {
     fn lines(&self) -> Vec<String>;
 
     fn lines_and_wrap_points(&self) -> (Vec<String>, Vec<usize>);
+
+    fn is_soft_wrapped_line(&self, line_index: usize) -> bool;
 }
 
 impl Size for Block {
@@ -405,6 +407,14 @@ impl Size for Block {
             Block::Headline(headline) => headline.lines_and_wrap_points(),
         }
     }
+
+    fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
+        match self {
+            Block::Newline(newline) => newline.is_soft_wrapped_line(line_index),
+            Block::Paragraph(paragraph) => paragraph.is_soft_wrapped_line(line_index),
+            Block::Headline(headline) => headline.is_soft_wrapped_line(line_index),
+        }
+    }
 }
 
 impl Size for Newline {
@@ -428,6 +438,10 @@ impl Size for Newline {
 
     fn length_of_line(&self, _line_index: usize) -> usize {
         return 0;
+    }
+
+    fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
+        false
     }
 }
 
@@ -453,6 +467,10 @@ impl Size for Headline {
 
         return line.len();
     }
+
+    fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
+        self.content.is_soft_wrapped_line(line_index)
+    }
 }
 
 impl Size for Paragraph {
@@ -476,5 +494,9 @@ impl Size for Paragraph {
         let line = self.content.line(line_index);
 
         return line.len();
+    }
+
+    fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
+        self.content.is_soft_wrapped_line(line_index)
     }
 }
