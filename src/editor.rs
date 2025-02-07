@@ -28,7 +28,7 @@ struct CursorPosition {
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         let cursor_position = CursorPosition {
-            offset: 50,
+            offset: 93,
             block_index: 2,
             preferred_x: 4,
         };
@@ -49,7 +49,13 @@ impl Editor {
                 self.cursor_position.offset = self.content.block_length(new_y) - 1;
             }
         } else {
-            self.cursor_position.offset -= 1;
+            let new_offset = self.cursor_position.offset - 1;
+            let block = self.content.block(self.cursor_position.block_index);
+            let line_in_block = block.line_of_offset(new_offset);
+            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+
+            self.cursor_position.offset = new_offset;
+            self.cursor_position.preferred_x = new_preferred_x;
         }
 
         context.notify();
@@ -66,7 +72,13 @@ impl Editor {
                 self.cursor_position.offset = 0;
             }
         } else {
-            self.cursor_position.offset += 1;
+            let new_offset = self.cursor_position.offset + 1;
+            let block = self.content.block(self.cursor_position.block_index);
+            let line_in_block = block.line_of_offset(new_offset);
+            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+
+            self.cursor_position.offset = new_offset;
+            self.cursor_position.preferred_x = new_preferred_x;
         }
 
         context.notify();
