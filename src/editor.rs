@@ -28,14 +28,14 @@ struct CursorPosition {
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         let cursor_position = CursorPosition {
-            offset: 93,
+            offset: 97,
             block_index: 2,
             preferred_x: 4,
         };
 
         return Editor {
             focus_handle,
-            content: Content::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text. This is a paragraph with some bold text, some italic text and some mixed text.\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
+            content: Content::new("## This is a headline\n\nDolor eleifend vitae porta iaculis etiam commodo. Mus erat lacus penatibus congue ultricies. Elementum tristique sociosqu curae etiam consequat et arcu placerat est.\n\nHabitant primis praesent malesuada lorem parturient lobortis metus. Pulvinar ultrices ligula id ac quisque curae, leo est.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
             cursor_position
         };
     }

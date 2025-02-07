@@ -417,7 +417,7 @@ impl Size for Newline {
     }
 
     fn length(&self) -> usize {
-        return 1;
+        return 0;
     }
 
     fn lines_and_wrap_points(&self) -> (Vec<String>, Vec<usize>) {
