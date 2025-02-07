@@ -2,17 +2,20 @@ use std::ops::Index;
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    PaintQuad, Pixels, Point, Style, View, ViewContext, WrappedLine,
+    PaintQuad, Pixels, Point, Style, View, ViewContext,
 };
 
-use crate::{
-    text::{Block, Render, Size, Text},
-    MoveLeft, MoveRight, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK,
-};
+use crate::content::{Block, Content};
+use crate::content::{Render, RenderedBlock};
+use crate::{MoveLeft, MoveRight, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK};
+
+const CHARACTER_WIDTH: Pixels = px(10.24);
+pub const CHARACTER_COUNT_PER_LINE: usize = 50;
+pub const CONTAINER_WIDTH: Pixels = px(512.); // CHARACTER_WIDTH * CHARCTER_COUNT_PER_LINE
 
 pub struct Editor {
     focus_handle: FocusHandle,
-    content: Text,
+    content: Content,
     cursor_position: CursorPosition,
 }
 
@@ -25,8 +28,8 @@ impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         return Editor {
             focus_handle,
-            content: Text::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text. This is a paragraph with some bold text, some italic text and some mixed text.\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n### Another headline\n\nYo, some more text\n\n## Headline"),
-            cursor_position: CursorPosition { offset: 42, block_index: 4 }
+            content: Content::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text. This is a paragraph with some bold text, some italic text and some mixed text.\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
+            cursor_position: CursorPosition { offset:77, block_index: 4 }
         };
     }
 
@@ -36,7 +39,7 @@ impl Editor {
                 let new_y = self.cursor_position.block_index - 1;
 
                 self.cursor_position.block_index = new_y;
-                self.cursor_position.offset = self.content.get_block_length(new_y);
+                self.cursor_position.offset = self.content.block_length(new_y) - 1;
             }
         } else {
             self.cursor_position.offset -= 1;
@@ -46,12 +49,12 @@ impl Editor {
     }
 
     fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
-        let block_length = self
-            .content
-            .get_block_length(self.cursor_position.block_index);
+        let block_length = self.content.block_length(self.cursor_position.block_index) - 1;
 
         if self.cursor_position.offset == block_length {
-            if self.cursor_position.block_index + 1 < self.content.blocks().len() {
+            let new_y = self.cursor_position.block_index + 1;
+
+            if new_y < self.content.blocks().len() {
                 self.cursor_position.block_index += 1;
                 self.cursor_position.offset = 0;
             }
@@ -81,7 +84,7 @@ impl gpui::Render for Editor {
             .child(
                 div()
                     .bg(rgb(COLOR_PINK))
-                    .w(px(480.))
+                    .w(CONTAINER_WIDTH)
                     .line_height(px(24.))
                     .child(EditorElement {
                         input: context.view().clone(),
@@ -105,7 +108,7 @@ impl IntoElement for EditorElement {
 }
 
 struct PrepaintState {
-    blocks: Option<Vec<WrappedLine>>,
+    blocks: Vec<RenderedBlock>,
     cursor: Option<PaintQuad>,
     headline_rectangles: Vec<PaintQuad>,
 }
@@ -140,71 +143,44 @@ impl Element for EditorElement {
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
 
-        let mut blocks = content.blocks();
+        let blocks = content.blocks();
 
         let mut headline_rectangles = vec![];
-        let mut line_count = 0;
 
-        for block in &mut blocks {
+        for block in &blocks {
             if let Block::Headline(headline) = block {
-                let width = px(16. * headline.level.length() as f32);
+                let width = px(16. * headline.level() as f32);
 
-                let rect = fill(
+                let rectangle = fill(
                     Bounds::new(
                         point(
                             bounds.origin.x - width - px(16.),
-                            bounds.origin.y + (context.line_height() * line_count) + px(4.),
+                            bounds.origin.y + (context.line_height() * block.line_index()) + px(4.),
                         ),
                         size(width, px(16.)),
                     ),
                     rgb(COLOR_GRAY_800),
                 );
 
-                headline_rectangles.push(rect);
+                headline_rectangles.push(rectangle);
             }
-
-            line_count += block.line_length(context.text_system(), style.font(), font_size);
         }
 
-        let content = blocks
-            .iter_mut()
-            .flat_map(|block| block.render(context.text_system(), style.font(), font_size))
+        let rendered_blocks: Vec<RenderedBlock> = blocks
+            .into_iter()
+            .map(|mut block| block.render(context.text_system(), style.font(), font_size))
             .collect();
 
-        let shaped_blocks = blocks
-            .get_mut(input.cursor_position.block_index)
-            .unwrap()
-            .render(context.text_system(), style.font(), font_size);
-        let shaped_block = shaped_blocks.index(0);
-        // let cursor_position = shaped_block
-        //     .position_for_index(input.cursor_position.offset, context.line_height())
-        //     .unwrap();
-        let cursor_position = position_for_index(
-            shaped_block,
+        let cursor_position = content.cursor_position(
+            input.cursor_position.block_index,
             input.cursor_position.offset,
-            context.line_height(),
-        )
-        .unwrap();
-
-        // println!("{:?}", cursor_position);
-
-        let mut cursor_line_index = 0;
-
-        for (index, block) in blocks.iter_mut().enumerate() {
-            if index < input.cursor_position.block_index {
-                cursor_line_index +=
-                    block.line_length(context.text_system(), style.font(), font_size);
-            }
-        }
+        );
 
         let cursor = fill(
             Bounds::new(
                 point(
-                    bounds.left() + cursor_position.x - px(1.),
-                    bounds.top()
-                        + context.line_height() * cursor_line_index
-                        + cursor_position.y
-                        + px(4.),
+                    bounds.left() + px(cursor_position.x as f32) * CHARACTER_WIDTH - px(1.),
+                    bounds.top() + context.line_height() * px(cursor_position.y as f32) + px(4.),
                 ),
                 size(px(2.), px(16.)),
             ),
@@ -212,7 +188,7 @@ impl Element for EditorElement {
         );
 
         PrepaintState {
-            blocks: Some(content),
+            blocks: rendered_blocks,
             cursor: Some(cursor),
             headline_rectangles,
         }
@@ -227,19 +203,29 @@ impl Element for EditorElement {
         context: &mut gpui::WindowContext,
     ) {
         let focus_handle = self.input.read(context).focus_handle.clone();
-        let blocks = prepaint.blocks.take().unwrap().into_iter();
+        let blocks = prepaint.blocks.clone().into_iter();
         let headline_rectangles = prepaint.headline_rectangles.clone();
 
-        let mut line_count = 0;
         for block in blocks {
-            let line_length = block.wrap_boundaries.len() + 1;
-            let point = Point::new(
-                bounds.origin.x,
-                bounds.origin.y + (context.line_height() * px(line_count as f32)),
-            );
-            block.paint(point, context.line_height(), context).unwrap();
+            // The reason we are not just looping over lines directly is that there seem to be a rogue newline at the end
+            // So this is a hacky way to avoid that
+            // Should probably fix that issue properly at some point
 
-            line_count += line_length;
+            let mut line_count = 0;
+
+            for index in 0..block.line_length {
+                let line = &block.lines.index(index);
+
+                let point = Point::new(
+                    bounds.origin.x,
+                    bounds.origin.y
+                        + (context.line_height() * px(block.line_index as f32 + line_count as f32)),
+                );
+
+                line.paint(point, context.line_height(), context).unwrap();
+
+                line_count += 1;
+            }
         }
 
         for rectangle in headline_rectangles {
@@ -252,47 +238,4 @@ impl Element for EditorElement {
             }
         }
     }
-}
-
-fn position_for_index(
-    line: &WrappedLine,
-    index: usize,
-    line_height: Pixels,
-) -> Option<Point<Pixels>> {
-    let mut line_start_index = 0;
-    let line_end_indices = line
-        .wrap_boundaries
-        .iter()
-        .map(|wrap_boundary| {
-            let run = &line.unwrapped_layout.runs[wrap_boundary.run_ix];
-            let glyph = &run.glyphs[wrap_boundary.glyph_ix];
-            glyph.index
-        })
-        .chain([line.len()])
-        .enumerate();
-
-    for (i, line_end_index) in line_end_indices {
-        let line_y = i as f32 * line_height;
-        if index < line_start_index {
-            break;
-        } else if index > line_end_index {
-            line_start_index = line_end_index;
-
-            continue;
-        } else if index == line_end_index && index < line.len() {
-            // This condition is the patch to the original position_for_index
-            // We are basically checking whether the index is at the end of a soft-wrapped line
-
-            line_start_index = line_end_index;
-
-            continue;
-        } else {
-            let line_start_x = line.unwrapped_layout.x_for_index(line_start_index);
-            let x = line.unwrapped_layout.x_for_index(index) - line_start_x;
-
-            return Some(point(x, line_y));
-        }
-    }
-
-    None
 }
