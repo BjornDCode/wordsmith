@@ -106,7 +106,10 @@ impl Editor {
                 let preferred_offset =
                     start_of_last_line_in_previous_block + self.cursor_position.preferred_x;
 
-                let offset = std::cmp::min(last_line_length, preferred_offset);
+                let offset = std::cmp::min(
+                    start_of_last_line_in_previous_block + last_line_length,
+                    preferred_offset,
+                );
 
                 self.cursor_position.block_index = new_block_index;
                 self.cursor_position.offset = offset;
