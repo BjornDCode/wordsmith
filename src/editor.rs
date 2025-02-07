@@ -8,8 +8,8 @@ use gpui::{
 use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
-    MoveBeginningOfFile, MoveDown, MoveEndOfFile, MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK,
-    COLOR_GRAY_800, COLOR_PINK,
+    MoveBeginningOfFile, MoveBeginningOfLine, MoveDown, MoveEndOfFile, MoveEndOfLine, MoveLeft,
+    MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -178,6 +178,30 @@ impl Editor {
 
         context.notify();
     }
+
+    fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
+        let block = self.content.block(self.cursor_position.block_index);
+        let current_line_index = block.line_of_offset(self.cursor_position.offset);
+        let line_start = block.line_start(current_line_index);
+
+        self.cursor_position.offset = line_start;
+        self.cursor_position.preferred_x = 0;
+
+        context.notify();
+    }
+
+    fn move_end_of_line(&mut self, _: &MoveEndOfLine, context: &mut ViewContext<Self>) {
+        let block = self.content.block(self.cursor_position.block_index);
+        let current_line_index = block.line_of_offset(self.cursor_position.offset);
+        let line_start = block.line_start(current_line_index);
+        let line_length = block.length_of_line(current_line_index);
+        let new_offset = line_start + line_length - 1;
+
+        self.cursor_position.offset = new_offset;
+        self.cursor_position.preferred_x = line_length - 1;
+
+        context.notify();
+    }
 }
 
 impl FocusableView for Editor {
@@ -197,6 +221,8 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_down))
             .on_action(context.listener(Self::move_beginning_of_file))
             .on_action(context.listener(Self::move_end_of_file))
+            .on_action(context.listener(Self::move_beginning_of_line))
+            .on_action(context.listener(Self::move_end_of_line))
             .pt_8()
             .group("editor-container")
             .child(
