@@ -367,6 +367,8 @@ pub trait Size {
     fn is_soft_wrapped_line(&self, line_index: usize) -> bool;
 
     fn previous_word_boundary(&self, offset: usize) -> Option<usize>;
+
+    fn next_word_boundary(&self, offset: usize) -> Option<usize>;
 }
 
 impl Size for Block {
@@ -425,6 +427,14 @@ impl Size for Block {
             Block::Headline(headline) => headline.previous_word_boundary(offset),
         }
     }
+
+    fn next_word_boundary(&self, offset: usize) -> Option<usize> {
+        match self {
+            Block::Newline(newline) => newline.next_word_boundary(offset),
+            Block::Paragraph(paragraph) => paragraph.next_word_boundary(offset),
+            Block::Headline(headline) => headline.next_word_boundary(offset),
+        }
+    }
 }
 
 impl Size for Newline {
@@ -455,6 +465,10 @@ impl Size for Newline {
     }
 
     fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
+        None
+    }
+
+    fn next_word_boundary(&self, offset: usize) -> Option<usize> {
         None
     }
 }
@@ -489,6 +503,10 @@ impl Size for Headline {
     fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
         self.content.previous_word_boundary(offset)
     }
+
+    fn next_word_boundary(&self, offset: usize) -> Option<usize> {
+        self.content.next_word_boundary(offset)
+    }
 }
 
 impl Size for Paragraph {
@@ -520,5 +538,9 @@ impl Size for Paragraph {
 
     fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
         self.content.previous_word_boundary(offset)
+    }
+
+    fn next_word_boundary(&self, offset: usize) -> Option<usize> {
+        self.content.next_word_boundary(offset)
     }
 }

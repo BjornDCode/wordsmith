@@ -9,7 +9,8 @@ use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
-    MoveEndOfLine, MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK,
+    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_GRAY_800,
+    COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -267,6 +268,56 @@ impl Editor {
 
         context.notify();
     }
+
+    fn move_end_of_word(&mut self, _: &MoveEndOfWord, context: &mut ViewContext<Self>) {
+        let mut potential_position: Option<(usize, usize)> = None;
+        let mut current_block_index = self.cursor_position.block_index;
+        let mut current_offset = self.cursor_position.offset;
+
+        loop {
+            let block = self.content.block(current_block_index);
+
+            let position = block.next_word_boundary(current_offset);
+
+            if let Some(offset) = position {
+                potential_position = Some((current_block_index, offset));
+                break;
+            }
+
+            if current_block_index == self.content.blocks().len() - 1 {
+                break;
+            }
+
+            current_offset = 0;
+            current_block_index = current_block_index + 1;
+        }
+
+        let (block_index, offset) = match potential_position {
+            Some(position) => position,
+            None => {
+                let block_index = self.content.blocks().len() - 1;
+                let block = self.content.block(block_index);
+                let length = if block.length() == 0 {
+                    0
+                } else {
+                    block.length() - 1
+                };
+
+                (block_index, length)
+            }
+        };
+
+        self.cursor_position.block_index = block_index;
+        self.cursor_position.offset = offset;
+
+        let block = self.content.block(block_index);
+        let line_of_offset = block.line_of_offset(offset);
+        let preferred_x = block.offset_in_line(line_of_offset, offset);
+
+        self.cursor_position.preferred_x = preferred_x;
+
+        context.notify();
+    }
 }
 
 impl FocusableView for Editor {
@@ -289,6 +340,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_beginning_of_line))
             .on_action(context.listener(Self::move_end_of_line))
             .on_action(context.listener(Self::move_beginning_of_word))
+            .on_action(context.listener(Self::move_end_of_word))
             .pt_8()
             .group("editor-container")
             .child(

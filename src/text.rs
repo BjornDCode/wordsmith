@@ -142,6 +142,32 @@ impl WrappedText {
         }
     }
 
+    pub fn next_word_boundary(&self, offset: usize) -> Option<usize> {
+        if offset == self.length() - 1 {
+            return None;
+        }
+
+        let resolved_offset = self.resolve_offset(offset);
+
+        let content = self.to_string();
+        let slice = &content[resolved_offset..];
+
+        let initial_whitespaces = slice
+            .chars()
+            .take_while(|character| character.is_whitespace())
+            .count();
+
+        let index = slice
+            .chars()
+            .skip(initial_whitespaces)
+            .position(|character| character.is_whitespace());
+
+        match index {
+            Some(index) => Some(offset + index + initial_whitespaces),
+            None => Some(self.length() - 1),
+        }
+    }
+
     fn to_string_with_wrap_points(&self) -> (String, Vec<usize>) {
         let content = self.text.to_string();
 
