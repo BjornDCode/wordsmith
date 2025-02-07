@@ -31,9 +31,9 @@ struct CursorPosition {
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         let cursor_position = CursorPosition {
-            offset: 97,
-            block_index: 2,
-            preferred_x: 4,
+            offset: 0,
+            block_index: 7,
+            preferred_x: 50,
         };
 
         return Editor {
@@ -100,10 +100,13 @@ impl Editor {
                 let start_of_last_line_in_previous_block =
                     previous_block.line_start(previous_block_line_length - 1);
 
+                let last_line_length =
+                    previous_block.length_of_line(previous_block_line_length - 1);
+
                 let preferred_offset =
                     start_of_last_line_in_previous_block + self.cursor_position.preferred_x;
 
-                let offset = std::cmp::min(previous_block.length(), preferred_offset);
+                let offset = std::cmp::min(last_line_length, preferred_offset);
 
                 self.cursor_position.block_index = new_block_index;
                 self.cursor_position.offset = offset;
