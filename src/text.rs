@@ -107,6 +107,41 @@ impl WrappedText {
         return wrap_points.contains(&offset);
     }
 
+    fn resolve_offset(&self, offset: usize) -> usize {
+        let (_, wrap_points) = self.to_string_with_wrap_points();
+        let wrap_points_before_offset = wrap_points.iter().filter(|point| **point < offset).count();
+
+        return offset + wrap_points_before_offset;
+    }
+
+    pub fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
+        if offset == 0 {
+            return None;
+        }
+
+        let resolved_offset = self.resolve_offset(offset);
+
+        let content = self.to_string();
+        let slice = &content[..resolved_offset];
+
+        let initial_whitespaces = slice
+            .chars()
+            .rev()
+            .take_while(|character| character.is_whitespace())
+            .count();
+
+        let index = slice
+            .chars()
+            .rev()
+            .skip(initial_whitespaces)
+            .position(|character| character.is_whitespace());
+
+        match index {
+            Some(index) => Some(offset - index - initial_whitespaces),
+            None => Some(0),
+        }
+    }
+
     fn to_string_with_wrap_points(&self) -> (String, Vec<usize>) {
         let content = self.text.to_string();
 

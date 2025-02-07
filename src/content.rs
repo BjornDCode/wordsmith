@@ -365,6 +365,8 @@ pub trait Size {
     fn lines_and_wrap_points(&self) -> (Vec<String>, Vec<usize>);
 
     fn is_soft_wrapped_line(&self, line_index: usize) -> bool;
+
+    fn previous_word_boundary(&self, offset: usize) -> Option<usize>;
 }
 
 impl Size for Block {
@@ -415,6 +417,14 @@ impl Size for Block {
             Block::Headline(headline) => headline.is_soft_wrapped_line(line_index),
         }
     }
+
+    fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
+        match self {
+            Block::Newline(newline) => newline.previous_word_boundary(offset),
+            Block::Paragraph(paragraph) => paragraph.previous_word_boundary(offset),
+            Block::Headline(headline) => headline.previous_word_boundary(offset),
+        }
+    }
 }
 
 impl Size for Newline {
@@ -442,6 +452,10 @@ impl Size for Newline {
 
     fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
         false
+    }
+
+    fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
+        None
     }
 }
 
@@ -471,6 +485,10 @@ impl Size for Headline {
     fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
         self.content.is_soft_wrapped_line(line_index)
     }
+
+    fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
+        self.content.previous_word_boundary(offset)
+    }
 }
 
 impl Size for Paragraph {
@@ -498,5 +516,9 @@ impl Size for Paragraph {
 
     fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
         self.content.is_soft_wrapped_line(line_index)
+    }
+
+    fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
+        self.content.previous_word_boundary(offset)
     }
 }

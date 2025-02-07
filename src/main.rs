@@ -44,7 +44,8 @@ actions!(
         MoveBeginningOfFile,
         MoveEndOfFile,
         MoveBeginningOfLine,
-        MoveEndOfLine
+        MoveEndOfLine,
+        MoveBeginningOfWord
     ]
 );
 impl_actions!(app, [SetMode]);
@@ -82,6 +83,7 @@ fn main() {
                 KeyBinding::new("cmd-down", MoveEndOfFile, "editor".into()),
                 KeyBinding::new("cmd-left", MoveBeginningOfLine, "editor".into()),
                 KeyBinding::new("cmd-right", MoveEndOfLine, "editor".into()),
+                KeyBinding::new("alt-left", MoveBeginningOfWord, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());

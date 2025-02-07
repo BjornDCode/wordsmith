@@ -8,8 +8,8 @@ use gpui::{
 use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
-    MoveBeginningOfFile, MoveBeginningOfLine, MoveDown, MoveEndOfFile, MoveEndOfLine, MoveLeft,
-    MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK,
+    MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
+    MoveEndOfLine, MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -31,9 +31,9 @@ struct CursorPosition {
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         let cursor_position = CursorPosition {
-            offset: 133,
+            offset: 12,
             block_index: 2,
-            preferred_x: 50,
+            preferred_x: 12,
         };
 
         return Editor {
@@ -225,6 +225,48 @@ impl Editor {
 
         context.notify();
     }
+
+    fn move_beginning_of_word(&mut self, _: &MoveBeginningOfWord, context: &mut ViewContext<Self>) {
+        let mut potential_position: Option<(usize, usize)> = None;
+        let mut current_block_index = self.cursor_position.block_index;
+        let mut current_offset = self.cursor_position.offset;
+
+        loop {
+            let block = self.content.block(current_block_index);
+
+            let position = block.previous_word_boundary(current_offset);
+
+            if let Some(offset) = position {
+                potential_position = Some((current_block_index, offset));
+                break;
+            }
+
+            if current_block_index == 0 {
+                break;
+            }
+
+            let previous_block_index = current_block_index - 1;
+            let previous_block = self.content.block(previous_block_index);
+            current_offset = previous_block.length();
+            current_block_index = previous_block_index;
+        }
+
+        let (block_index, offset) = match potential_position {
+            Some(position) => position,
+            None => (0, 0),
+        };
+
+        self.cursor_position.block_index = block_index;
+        self.cursor_position.offset = offset;
+
+        let block = self.content.block(block_index);
+        let line_of_offset = block.line_of_offset(offset);
+        let preferred_x = block.offset_in_line(line_of_offset, offset);
+
+        self.cursor_position.preferred_x = preferred_x;
+
+        context.notify();
+    }
 }
 
 impl FocusableView for Editor {
@@ -246,6 +288,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_end_of_file))
             .on_action(context.listener(Self::move_beginning_of_line))
             .on_action(context.listener(Self::move_end_of_line))
+            .on_action(context.listener(Self::move_beginning_of_word))
             .pt_8()
             .group("editor-container")
             .child(
