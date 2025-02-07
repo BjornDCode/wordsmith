@@ -22,14 +22,21 @@ pub struct Editor {
 struct CursorPosition {
     block_index: usize,
     offset: usize,
+    preferred_x: usize,
 }
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
+        let cursor_position = CursorPosition {
+            offset: 50,
+            block_index: 2,
+            preferred_x: 4,
+        };
+
         return Editor {
             focus_handle,
             content: Content::new("## This is a headline\n\nThis is a paragraph with some bold text, some italic text and some mixed text. This is a paragraph with some bold text, some italic text and some mixed text.\n\nThis is a paragraph with some bold text, some italic text and some mixed text.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
-            cursor_position: CursorPosition { offset: 135, block_index: 2 }
+            cursor_position
         };
     }
 
@@ -71,32 +78,34 @@ impl Editor {
 
         if line_index_in_block == 0 {
             if self.cursor_position.block_index > 0 {
-                let offset_in_current_line =
-                    current_block.offset_in_line(line_index_in_block, self.cursor_position.offset);
                 let new_block_index = self.cursor_position.block_index - 1;
-                self.cursor_position.block_index = new_block_index;
 
                 let previous_block = self.content.block(new_block_index);
                 let previous_block_line_length = previous_block.line_length();
-                let length_of_last_line_in_prevous_block =
+                let length_of_last_line_in_previous_block =
                     previous_block.length_of_line(previous_block_line_length - 1);
+                let start_of_last_line_in_previous_block =
+                    previous_block.line_start(previous_block_line_length - 1);
 
-                let offset =
-                    std::cmp::min(length_of_last_line_in_prevous_block, offset_in_current_line);
+                let preferred_offset =
+                    start_of_last_line_in_previous_block + self.cursor_position.preferred_x;
 
+                let offset = std::cmp::min(length_of_last_line_in_previous_block, preferred_offset);
+
+                self.cursor_position.block_index = new_block_index;
                 self.cursor_position.offset = offset;
             } else {
                 self.cursor_position.offset = 0;
             }
         } else {
-            let offset_in_current_line =
-                current_block.offset_in_line(line_index_in_block, self.cursor_position.offset);
-
             let previous_line_length = current_block.length_of_line(line_index_in_block - 1);
             let previous_line_start = current_block.line_start(line_index_in_block - 1);
+
+            let preferred_offset = previous_line_start + self.cursor_position.preferred_x;
+
             let offset = std::cmp::min(
                 previous_line_start + previous_line_length - 1,
-                previous_line_start + offset_in_current_line,
+                preferred_offset,
             );
 
             self.cursor_position.offset = offset;
