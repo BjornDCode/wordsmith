@@ -2,7 +2,8 @@ use std::ops::Index;
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    PaintQuad, Pixels, Point, Style, View, ViewContext,
+    Font, FontWeight, Hsla, PaintQuad, Pixels, Point, ShapedLine, Style, TextRun, View,
+    ViewContext,
 };
 
 use crate::content::{Block, Content, Size};
@@ -383,7 +384,7 @@ impl IntoElement for EditorElement {
 struct PrepaintState {
     blocks: Vec<RenderedBlock>,
     cursor: Option<PaintQuad>,
-    headline_rectangles: Vec<PaintQuad>,
+    headline_markers: Vec<RenderedHeadlineMarker>,
 }
 
 impl Element for EditorElement {
@@ -418,24 +419,36 @@ impl Element for EditorElement {
 
         let blocks = content.blocks();
 
-        let mut headline_rectangles = vec![];
+        let mut headline_markers = vec![];
 
         for block in &blocks {
             if let Block::Headline(headline) = block {
                 let width = px(16. * headline.level() as f32);
-
-                let rectangle = fill(
-                    Bounds::new(
-                        point(
-                            bounds.origin.x - width - px(16.),
-                            bounds.origin.y + (context.line_height() * block.line_index()) + px(4.),
-                        ),
-                        size(width, px(16.)),
-                    ),
-                    rgb(COLOR_GRAY_800),
+                let content = "#".repeat(headline.level()) + " ";
+                let runs = vec![TextRun {
+                    len: content.len(),
+                    font: Font {
+                        weight: FontWeight::EXTRA_BOLD,
+                        ..style.font()
+                    },
+                    color: Hsla::from(rgb(COLOR_GRAY_800)),
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                }];
+                let shaped_text = context
+                    .text_system()
+                    .shape_line(content.into(), font_size, &runs)
+                    .unwrap();
+                let origin = point(
+                    bounds.origin.x - width,
+                    bounds.origin.y + (context.line_height() * block.line_index()),
                 );
 
-                headline_rectangles.push(rectangle);
+                headline_markers.push(RenderedHeadlineMarker {
+                    shaped_text,
+                    origin,
+                });
             }
         }
 
@@ -463,7 +476,7 @@ impl Element for EditorElement {
         PrepaintState {
             blocks: rendered_blocks,
             cursor: Some(cursor),
-            headline_rectangles,
+            headline_markers,
         }
     }
 
@@ -477,7 +490,7 @@ impl Element for EditorElement {
     ) {
         let focus_handle = self.input.read(context).focus_handle.clone();
         let blocks = prepaint.blocks.clone().into_iter();
-        let headline_rectangles = prepaint.headline_rectangles.clone();
+        let headline_markers = prepaint.headline_markers.clone();
 
         for block in blocks {
             // The reason we are not just looping over lines directly is that there seem to be a rogue newline at the end
@@ -501,8 +514,8 @@ impl Element for EditorElement {
             }
         }
 
-        for rectangle in headline_rectangles {
-            context.paint_quad(rectangle);
+        for marker in headline_markers {
+            marker.render(context);
         }
 
         if focus_handle.is_focused(context) {
@@ -510,5 +523,19 @@ impl Element for EditorElement {
                 context.paint_quad(cursor);
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RenderedHeadlineMarker {
+    shaped_text: ShapedLine,
+    origin: Point<Pixels>,
+}
+
+impl RenderedHeadlineMarker {
+    pub fn render(&self, context: &mut gpui::WindowContext) {
+        self.shaped_text
+            .paint(self.origin, context.line_height(), context)
+            .unwrap();
     }
 }

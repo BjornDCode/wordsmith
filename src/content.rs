@@ -460,15 +460,15 @@ impl Size for Newline {
         return 0;
     }
 
-    fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
+    fn is_soft_wrapped_line(&self, _line_index: usize) -> bool {
         false
     }
 
-    fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
+    fn previous_word_boundary(&self, _offset: usize) -> Option<usize> {
         None
     }
 
-    fn next_word_boundary(&self, offset: usize) -> Option<usize> {
+    fn next_word_boundary(&self, _offset: usize) -> Option<usize> {
         None
     }
 }
