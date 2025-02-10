@@ -1,4 +1,8 @@
-use std::{ops::Index, sync::Arc};
+use std::{
+    cmp::{max, min},
+    ops::{Index, Range},
+    sync::Arc,
+};
 
 use gpui::{
     rgb, Font, FontWeight, Hsla, Pixels, SharedString, TextRun, WindowTextSystem, WrappedLine,
@@ -101,6 +105,19 @@ impl Content {
     pub fn block(&self, block_index: usize) -> Block {
         self.blocks().index(block_index).clone()
     }
+
+    pub fn block_start(&self, index: usize) -> usize {
+        let blocks = self.blocks();
+        let previous_blocks = &blocks[..index];
+
+        let mut line_count = 0;
+
+        for block in previous_blocks {
+            line_count += block.line_length();
+        }
+
+        return line_count;
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -174,6 +191,16 @@ impl Block {
         let line_start = self.line_start(line_index);
 
         return offset - line_start;
+    }
+
+    pub fn line_range(&self, start_offset: usize, end_offset: usize) -> Range<usize> {
+        let start = self.line_of_offset(start_offset);
+        let end = self.line_of_offset(end_offset);
+
+        let smallest = min(start, end);
+        let largest = max(start, end) + 1;
+
+        return smallest..largest;
     }
 }
 

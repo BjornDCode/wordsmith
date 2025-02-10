@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::ops::Index;
 
 use gpui::{
@@ -10,8 +11,8 @@ use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
-    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_GRAY_800,
-    COLOR_PINK,
+    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT,
+    COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -21,12 +22,12 @@ pub const CONTAINER_WIDTH: Pixels = px(512.); // CHARACTER_WIDTH * CHARCTER_COUN
 pub struct Editor {
     focus_handle: FocusHandle,
     content: Content,
-    cursor: Cursor,
+    edit_location: EditLocation,
 }
 
 #[derive(Debug, Clone)]
-enum Cursor {
-    Caret(Caret),
+enum EditLocation {
+    Cursor(Cursor),
     Selection(Selection),
 }
 
@@ -36,8 +37,48 @@ pub struct CursorPoint {
     pub offset: usize,
 }
 
+impl PartialEq for CursorPoint {
+    fn eq(&self, other: &Self) -> bool {
+        self.block_index == other.block_index && self.offset == other.offset
+    }
+}
+
+impl Eq for CursorPoint {}
+
+impl Ord for CursorPoint {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for CursorPoint {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.block_index == other.block_index {
+            if self.offset < other.offset {
+                return Some(Ordering::Less);
+            }
+
+            if self.offset > other.offset {
+                return Some(Ordering::Greater);
+            }
+
+            return Some(Ordering::Equal);
+        }
+
+        if self.block_index < other.block_index {
+            return Some(Ordering::Less);
+        }
+
+        if self.block_index > other.block_index {
+            return Some(Ordering::Greater);
+        }
+
+        return Some(Ordering::Equal);
+    }
+}
+
 #[derive(Debug, Clone)]
-struct Caret {
+struct Cursor {
     position: CursorPoint,
     preferred_x: usize,
 }
@@ -48,20 +89,39 @@ struct Selection {
     end: CursorPoint,
 }
 
+impl Selection {
+    pub fn direction(&self) -> SelectionDirection {
+        if self.end < self.start {
+            SelectionDirection::Left
+        } else {
+            SelectionDirection::Right
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum SelectionDirection {
+    Left,
+    Right,
+}
+
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        let cursor = Cursor::Caret(Caret {
-            position: CursorPoint {
+        let edit_location = EditLocation::Selection(Selection {
+            end: CursorPoint {
                 offset: 12,
+                block_index: 0,
+            },
+            start: CursorPoint {
+                offset: 110,
                 block_index: 2,
             },
-            preferred_x: 12,
         });
 
         return Editor {
             focus_handle,
             content: Content::new("## This is a headline\n\nDolor elend vitae porta iaculis etiam commodo. Mus erat lacus penatibus congue ultricies. Elementum tristique sociosqu curae etiam consequat et arcu placerat est.\n\nHabitant primis praesent malesuada lorem parturient lobortis metus. Pulvinar ultrices ligula id ac quisque curae, leo est.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
-            cursor
+            edit_location
         };
     }
 
@@ -401,7 +461,7 @@ impl IntoElement for EditorElement {
 
 struct PrepaintState {
     blocks: Vec<RenderedBlock>,
-    cursor: Option<PaintQuad>,
+    edit_location_rectangles: Option<Vec<PaintQuad>>,
     headline_markers: Vec<RenderedHeadlineMarker>,
 }
 
@@ -475,11 +535,11 @@ impl Element for EditorElement {
             .map(|mut block| block.render(context.text_system(), style.font(), font_size))
             .collect();
 
-        let cursor = match input.cursor.clone() {
-            Cursor::Caret(caret) => {
+        let edit_location_rectangles = match input.edit_location.clone() {
+            EditLocation::Cursor(caret) => {
                 let position = content.cursor_position(caret.position);
 
-                fill(
+                let rectangles = vec![fill(
                     Bounds::new(
                         point(
                             bounds.left() + px(position.x as f32) * CHARACTER_WIDTH - px(1.),
@@ -488,14 +548,70 @@ impl Element for EditorElement {
                         size(px(2.), px(16.)),
                     ),
                     rgb(COLOR_BLUE_DARK),
-                )
+                )];
+
+                rectangles
             }
-            Cursor::Selection(selection) => todo!(),
+            EditLocation::Selection(selection) => {
+                let mut rectangles = vec![];
+                let smallest_point = std::cmp::min(selection.start.clone(), selection.end.clone());
+                let largest_point = std::cmp::max(selection.start.clone(), selection.end.clone());
+                let block_indexes = smallest_point.block_index..largest_point.block_index + 1;
+
+                for block_index in block_indexes.clone() {
+                    let block_start_line_index = content.block_start(block_index);
+                    let block = content.block(block_index);
+                    let min = if block_index == block_indexes.start {
+                        smallest_point.offset
+                    } else {
+                        0
+                    };
+                    let max = if block_index == block_indexes.end - 1 {
+                        largest_point.offset
+                    } else {
+                        block.length()
+                    };
+                    let line_range = block.line_range(min, max);
+
+                    for line_index in line_range.clone() {
+                        let start = if line_index == line_range.start {
+                            block.offset_in_line(line_index, min)
+                        } else {
+                            0
+                        };
+                        let end = if line_index == line_range.end - 1 {
+                            let offset = if block_index == 0 {
+                                block.offset_in_line(line_index, min)
+                            } else {
+                                block.offset_in_line(line_index, max)
+                            };
+
+                            CHARACTER_COUNT_PER_LINE - offset
+                        } else {
+                            CHARACTER_COUNT_PER_LINE - start
+                        };
+
+                        let left = bounds.left() + px(start as f32) * CHARACTER_WIDTH - px(1.);
+                        let top = bounds.top()
+                            + px(block_start_line_index as f32) * context.line_height()
+                            + px(line_index as f32) * context.line_height();
+                        let width = px(end as f32) * CHARACTER_WIDTH + px(2.);
+
+                        let bounds =
+                            Bounds::new(point(left, top), size(width, context.line_height()));
+                        let rectangle = fill(bounds, rgb(COLOR_BLUE_MEDIUM));
+
+                        rectangles.push(rectangle);
+                    }
+                }
+
+                rectangles
+            }
         };
 
         PrepaintState {
             blocks: rendered_blocks,
-            cursor: Some(cursor),
+            edit_location_rectangles: Some(edit_location_rectangles),
             headline_markers,
         }
     }
@@ -511,6 +627,14 @@ impl Element for EditorElement {
         let focus_handle = self.input.read(context).focus_handle.clone();
         let blocks = prepaint.blocks.clone().into_iter();
         let headline_markers = prepaint.headline_markers.clone();
+
+        if focus_handle.is_focused(context) {
+            if let Some(edit_location_rectanlges) = prepaint.edit_location_rectangles.take() {
+                for rectangle in edit_location_rectanlges {
+                    context.paint_quad(rectangle);
+                }
+            }
+        }
 
         for block in blocks {
             // The reason we are not just looping over lines directly is that there seem to be a rogue newline at the end
@@ -536,12 +660,6 @@ impl Element for EditorElement {
 
         for marker in headline_markers {
             marker.render(context);
-        }
-
-        if focus_handle.is_focused(context) {
-            if let Some(cursor) = prepaint.cursor.take() {
-                context.paint_quad(cursor);
-            }
         }
     }
 }
