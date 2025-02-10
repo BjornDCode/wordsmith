@@ -57,8 +57,7 @@ impl Editor {
             let new_offset = self.cursor_position.offset - 1;
             let block = self.content.block(self.cursor_position.block_index);
             let line_in_block = block.line_of_offset(new_offset);
-            let line_length = block.length_of_line(line_in_block);
-            let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
+            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
 
             self.cursor_position.offset = new_offset;
             self.cursor_position.preferred_x = new_preferred_x;
@@ -81,8 +80,7 @@ impl Editor {
             let new_offset = self.cursor_position.offset + 1;
             let block = self.content.block(self.cursor_position.block_index);
             let line_in_block = block.line_of_offset(new_offset);
-            let line_length = block.length_of_line(line_in_block);
-            let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
+            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
 
             self.cursor_position.offset = new_offset;
             self.cursor_position.preferred_x = new_preferred_x;
