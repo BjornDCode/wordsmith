@@ -56,7 +56,8 @@ impl Editor {
             let new_offset = self.cursor_position.offset - 1;
             let block = self.content.block(self.cursor_position.block_index);
             let line_in_block = block.line_of_offset(new_offset);
-            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+            let line_length = block.length_of_line(line_in_block);
+            let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
 
             self.cursor_position.offset = new_offset;
             self.cursor_position.preferred_x = new_preferred_x;
@@ -79,7 +80,8 @@ impl Editor {
             let new_offset = self.cursor_position.offset + 1;
             let block = self.content.block(self.cursor_position.block_index);
             let line_in_block = block.line_of_offset(new_offset);
-            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+            let line_length = block.length_of_line(line_in_block);
+            let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
 
             self.cursor_position.offset = new_offset;
             self.cursor_position.preferred_x = new_preferred_x;
@@ -219,10 +221,17 @@ impl Editor {
         let current_line_index = block.line_of_offset(self.cursor_position.offset);
         let line_start = block.line_start(current_line_index);
         let line_length = block.length_of_line(current_line_index);
-        let new_offset = line_start + line_length - 1;
+        let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
+
+        // If line is empty (just a newline), stay at line_start, otherwise go to last character
+        let new_offset = if line_length == 0 {
+            line_start
+        } else {
+            line_start + line_length - 1
+        };
 
         self.cursor_position.offset = new_offset;
-        self.cursor_position.preferred_x = line_length - 1;
+        self.cursor_position.preferred_x = new_preferred_x;
 
         context.notify();
     }
@@ -262,7 +271,8 @@ impl Editor {
 
         let block = self.content.block(block_index);
         let line_of_offset = block.line_of_offset(offset);
-        let preferred_x = block.offset_in_line(line_of_offset, offset);
+        let line_length = block.length_of_line(line_of_offset);
+        let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
 
         self.cursor_position.preferred_x = preferred_x;
 
@@ -312,7 +322,8 @@ impl Editor {
 
         let block = self.content.block(block_index);
         let line_of_offset = block.line_of_offset(offset);
-        let preferred_x = block.offset_in_line(line_of_offset, offset);
+        let line_length = block.length_of_line(line_of_offset);
+        let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
 
         self.cursor_position.preferred_x = preferred_x;
 
