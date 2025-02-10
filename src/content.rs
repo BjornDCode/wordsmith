@@ -4,7 +4,7 @@ use gpui::{
     rgb, Font, FontWeight, Hsla, Pixels, SharedString, TextRun, WindowTextSystem, WrappedLine,
 };
 
-use crate::{text::WrappedText, COLOR_GRAY_700, COLOR_GRAY_800};
+use crate::{editor::CursorPoint, text::WrappedText, COLOR_GRAY_700, COLOR_GRAY_800};
 
 #[derive(Debug)]
 pub struct Point {
@@ -86,10 +86,10 @@ impl Content {
         return blocks;
     }
 
-    pub fn cursor_position(&self, block_index: usize, offset: usize) -> Point {
-        let block = self.block(block_index);
+    pub fn cursor_position(&self, point: CursorPoint) -> Point {
+        let block = self.block(point.block_index);
 
-        return block.cursor_position(offset);
+        return block.cursor_position(point.offset);
     }
 
     pub fn block_length(&self, block_index: usize) -> usize {

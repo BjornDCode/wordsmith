@@ -21,313 +21,333 @@ pub const CONTAINER_WIDTH: Pixels = px(512.); // CHARACTER_WIDTH * CHARCTER_COUN
 pub struct Editor {
     focus_handle: FocusHandle,
     content: Content,
-    cursor_position: CursorPosition,
+    cursor: Cursor,
 }
 
-struct CursorPosition {
-    block_index: usize,
-    offset: usize,
+#[derive(Debug, Clone)]
+enum Cursor {
+    Caret(Caret),
+    Selection(Selection),
+}
+
+#[derive(Debug, Clone)]
+pub struct CursorPoint {
+    pub block_index: usize,
+    pub offset: usize,
+}
+
+#[derive(Debug, Clone)]
+struct Caret {
+    position: CursorPoint,
     preferred_x: usize,
+}
+
+#[derive(Debug, Clone)]
+struct Selection {
+    start: CursorPoint,
+    end: CursorPoint,
 }
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        let cursor_position = CursorPosition {
-            offset: 12,
-            block_index: 2,
+        let cursor = Cursor::Caret(Caret {
+            position: CursorPoint {
+                offset: 12,
+                block_index: 2,
+            },
             preferred_x: 12,
-        };
+        });
 
         return Editor {
             focus_handle,
-            content: Content::new("## This is a headline\n\nDolor eleifend vitae porta iaculis etiam commodo. Mus erat lacus penatibus congue ultricies. Elementum tristique sociosqu curae etiam consequat et arcu placerat est.\n\nHabitant primis praesent malesuada lorem parturient lobortis metus. Pulvinar ultrices ligula id ac quisque curae, leo est.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
-            cursor_position
+            content: Content::new("## This is a headline\n\nDolor elend vitae porta iaculis etiam commodo. Mus erat lacus penatibus congue ultricies. Elementum tristique sociosqu curae etiam consequat et arcu placerat est.\n\nHabitant primis praesent malesuada lorem parturient lobortis metus. Pulvinar ultrices ligula id ac quisque curae, leo est.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
+            cursor
         };
     }
 
-    fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
-        if self.cursor_position.offset == 0 {
-            if self.cursor_position.block_index > 0 {
-                let new_y = self.cursor_position.block_index - 1;
-
-                self.cursor_position.block_index = new_y;
-                self.cursor_position.offset = self.content.block_length(new_y) - 1;
-            }
-        } else {
-            let new_offset = self.cursor_position.offset - 1;
-            let block = self.content.block(self.cursor_position.block_index);
-            let line_in_block = block.line_of_offset(new_offset);
-            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
-
-            self.cursor_position.offset = new_offset;
-            self.cursor_position.preferred_x = new_preferred_x;
-        }
-
-        context.notify();
-    }
-
-    fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
-        let block_length = self.content.block_length(self.cursor_position.block_index) - 1;
-
-        if self.cursor_position.offset == block_length {
-            let new_y = self.cursor_position.block_index + 1;
-
-            if new_y < self.content.blocks().len() {
-                self.cursor_position.block_index += 1;
-                self.cursor_position.offset = 0;
-            }
-        } else {
-            let new_offset = self.cursor_position.offset + 1;
-            let block = self.content.block(self.cursor_position.block_index);
-            let line_in_block = block.line_of_offset(new_offset);
-            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
-
-            self.cursor_position.offset = new_offset;
-            self.cursor_position.preferred_x = new_preferred_x;
-        }
-
-        context.notify();
-    }
-
-    fn move_up(&mut self, _: &MoveUp, context: &mut ViewContext<Self>) {
-        let current_block = self.content.block(self.cursor_position.block_index);
-        let line_index_in_block = current_block.line_of_offset(self.cursor_position.offset);
-
-        if line_index_in_block == 0 {
-            if self.cursor_position.block_index > 0 {
-                let new_block_index = self.cursor_position.block_index - 1;
-
-                let previous_block = self.content.block(new_block_index);
-                let previous_block_line_length = previous_block.line_length();
-                let start_of_last_line_in_previous_block =
-                    previous_block.line_start(previous_block_line_length - 1);
-
-                let last_line_length =
-                    previous_block.length_of_line(previous_block_line_length - 1);
-
-                let preferred_offset =
-                    start_of_last_line_in_previous_block + self.cursor_position.preferred_x;
-
-                let offset = std::cmp::min(
-                    start_of_last_line_in_previous_block + last_line_length,
-                    preferred_offset,
-                );
-
-                self.cursor_position.block_index = new_block_index;
-                self.cursor_position.offset = offset;
-            } else {
-                self.cursor_position.offset = 0;
-            }
-        } else {
-            let previous_line_length = current_block.length_of_line(line_index_in_block - 1);
-            let previous_line_start = current_block.line_start(line_index_in_block - 1);
-
-            let preferred_offset = previous_line_start + self.cursor_position.preferred_x;
-
-            let offset = std::cmp::min(
-                previous_line_start + previous_line_length - 1,
-                preferred_offset,
-            );
-
-            self.cursor_position.offset = offset;
-        }
-
-        context.notify()
-    }
-
-    fn move_down(&mut self, _: &MoveDown, context: &mut ViewContext<Self>) {
-        let block = self.content.block(self.cursor_position.block_index);
-        let block_line_length = block.line_length();
-        let line_index_in_block = block.line_of_offset(self.cursor_position.offset);
-
-        if line_index_in_block == block_line_length - 1 {
-            if self.cursor_position.block_index < self.content.blocks().len() - 1 {
-                let next_block_index = self.cursor_position.block_index + 1;
-                let next_block = self.content.block(next_block_index);
-
-                let first_line_length = next_block.length_of_line(0);
-                let first_line_length = if first_line_length == 0 {
-                    0
-                } else {
-                    if next_block.is_soft_wrapped_line(0) {
-                        first_line_length - 1
-                    } else {
-                        first_line_length
-                    }
-                };
-
-                let preferred_offset = self.cursor_position.preferred_x;
-
-                let offset = std::cmp::min(first_line_length, preferred_offset);
-
-                self.cursor_position.block_index = next_block_index;
-                self.cursor_position.offset = offset;
-            } else {
-                self.cursor_position.offset = block.length() - 1;
-            }
-        } else {
-            let next_line_start = block.line_start(line_index_in_block + 1);
-            let next_line_length = block.length_of_line(line_index_in_block + 1);
-            let is_soft_wrapped_line = block.is_soft_wrapped_line(line_index_in_block + 1);
-            let modifier_value = match is_soft_wrapped_line {
-                true => 1,
-                false => 0,
-            };
-
-            let preferred_offset = next_line_start + self.cursor_position.preferred_x;
-
-            let offset = std::cmp::min(
-                next_line_start + next_line_length - modifier_value,
-                preferred_offset,
-            );
-
-            self.cursor_position.offset = offset;
-        }
-
-        context.notify();
-    }
-
-    fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
-        self.cursor_position.block_index = 0;
-        self.cursor_position.offset = 0;
-
-        context.notify();
-    }
-
-    fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
-        let last_block_index = self.content.blocks().len() - 1;
-        let block = self.content.block(last_block_index);
-
-        self.cursor_position.block_index = last_block_index;
-        self.cursor_position.offset = block.length() - 1;
-
-        context.notify();
-    }
-
-    fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
-        let block = self.content.block(self.cursor_position.block_index);
-        let current_line_index = block.line_of_offset(self.cursor_position.offset);
-        let line_start = block.line_start(current_line_index);
-
-        self.cursor_position.offset = line_start;
-        self.cursor_position.preferred_x = 0;
-
-        context.notify();
-    }
-
-    fn move_end_of_line(&mut self, _: &MoveEndOfLine, context: &mut ViewContext<Self>) {
-        let block = self.content.block(self.cursor_position.block_index);
-        let current_line_index = block.line_of_offset(self.cursor_position.offset);
-        let line_start = block.line_start(current_line_index);
-        let line_length = block.length_of_line(current_line_index);
-        let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
-
-        // If line is empty (just a newline), stay at line_start, otherwise go to last character
-        let new_offset = if line_length == 0 {
-            line_start
-        } else {
-            line_start + line_length - 1
-        };
-
-        self.cursor_position.offset = new_offset;
-        self.cursor_position.preferred_x = new_preferred_x;
-
-        context.notify();
-    }
-
-    fn move_beginning_of_word(&mut self, _: &MoveBeginningOfWord, context: &mut ViewContext<Self>) {
-        let mut potential_position: Option<(usize, usize)> = None;
-        let mut current_block_index = self.cursor_position.block_index;
-        let mut current_offset = self.cursor_position.offset;
-
-        loop {
-            let block = self.content.block(current_block_index);
-
-            let position = block.previous_word_boundary(current_offset);
-
-            if let Some(offset) = position {
-                potential_position = Some((current_block_index, offset));
-                break;
-            }
-
-            if current_block_index == 0 {
-                break;
-            }
-
-            let previous_block_index = current_block_index - 1;
-            let previous_block = self.content.block(previous_block_index);
-            current_offset = previous_block.length();
-            current_block_index = previous_block_index;
-        }
-
-        let (block_index, offset) = match potential_position {
-            Some(position) => position,
-            None => (0, 0),
-        };
-
-        self.cursor_position.block_index = block_index;
-        self.cursor_position.offset = offset;
-
-        let block = self.content.block(block_index);
-        let line_of_offset = block.line_of_offset(offset);
-        let line_length = block.length_of_line(line_of_offset);
-        let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
-
-        self.cursor_position.preferred_x = preferred_x;
-
-        context.notify();
-    }
-
-    fn move_end_of_word(&mut self, _: &MoveEndOfWord, context: &mut ViewContext<Self>) {
-        let mut potential_position: Option<(usize, usize)> = None;
-        let mut current_block_index = self.cursor_position.block_index;
-        let mut current_offset = self.cursor_position.offset;
-
-        loop {
-            let block = self.content.block(current_block_index);
-
-            let position = block.next_word_boundary(current_offset);
-
-            if let Some(offset) = position {
-                potential_position = Some((current_block_index, offset));
-                break;
-            }
-
-            if current_block_index == self.content.blocks().len() - 1 {
-                break;
-            }
-
-            current_offset = 0;
-            current_block_index = current_block_index + 1;
-        }
-
-        let (block_index, offset) = match potential_position {
-            Some(position) => position,
-            None => {
-                let block_index = self.content.blocks().len() - 1;
-                let block = self.content.block(block_index);
-                let length = if block.length() == 0 {
-                    0
-                } else {
-                    block.length() - 1
-                };
-
-                (block_index, length)
-            }
-        };
-
-        self.cursor_position.block_index = block_index;
-        self.cursor_position.offset = offset;
-
-        let block = self.content.block(block_index);
-        let line_of_offset = block.line_of_offset(offset);
-        let line_length = block.length_of_line(line_of_offset);
-        let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
-
-        self.cursor_position.preferred_x = preferred_x;
-
-        context.notify();
-    }
+    // fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
+    //     if self.cursor_position.offset == 0 {
+    //         if self.cursor_position.block_index > 0 {
+    //             let new_y = self.cursor_position.block_index - 1;
+
+    //             self.cursor_position.block_index = new_y;
+    //             self.cursor_position.offset = self.content.block_length(new_y) - 1;
+    //         }
+    //     } else {
+    //         let new_offset = self.cursor_position.offset - 1;
+    //         let block = self.content.block(self.cursor_position.block_index);
+    //         let line_in_block = block.line_of_offset(new_offset);
+    //         let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+
+    //         self.cursor_position.offset = new_offset;
+    //         self.cursor_position.preferred_x = new_preferred_x;
+    //     }
+
+    //     context.notify();
+    // }
+
+    // fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
+    //     let block_length = self.content.block_length(self.cursor_position.block_index) - 1;
+
+    //     if self.cursor_position.offset == block_length {
+    //         let new_y = self.cursor_position.block_index + 1;
+
+    //         if new_y < self.content.blocks().len() {
+    //             self.cursor_position.block_index += 1;
+    //             self.cursor_position.offset = 0;
+    //         }
+    //     } else {
+    //         let new_offset = self.cursor_position.offset + 1;
+    //         let block = self.content.block(self.cursor_position.block_index);
+    //         let line_in_block = block.line_of_offset(new_offset);
+    //         let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+
+    //         self.cursor_position.offset = new_offset;
+    //         self.cursor_position.preferred_x = new_preferred_x;
+    //     }
+
+    //     context.notify();
+    // }
+
+    // fn move_up(&mut self, _: &MoveUp, context: &mut ViewContext<Self>) {
+    //     let current_block = self.content.block(self.cursor_position.block_index);
+    //     let line_index_in_block = current_block.line_of_offset(self.cursor_position.offset);
+
+    //     if line_index_in_block == 0 {
+    //         if self.cursor_position.block_index > 0 {
+    //             let new_block_index = self.cursor_position.block_index - 1;
+
+    //             let previous_block = self.content.block(new_block_index);
+    //             let previous_block_line_length = previous_block.line_length();
+    //             let start_of_last_line_in_previous_block =
+    //                 previous_block.line_start(previous_block_line_length - 1);
+
+    //             let last_line_length =
+    //                 previous_block.length_of_line(previous_block_line_length - 1);
+
+    //             let preferred_offset =
+    //                 start_of_last_line_in_previous_block + self.cursor_position.preferred_x;
+
+    //             let offset = std::cmp::min(
+    //                 start_of_last_line_in_previous_block + last_line_length,
+    //                 preferred_offset,
+    //             );
+
+    //             self.cursor_position.block_index = new_block_index;
+    //             self.cursor_position.offset = offset;
+    //         } else {
+    //             self.cursor_position.offset = 0;
+    //         }
+    //     } else {
+    //         let previous_line_length = current_block.length_of_line(line_index_in_block - 1);
+    //         let previous_line_start = current_block.line_start(line_index_in_block - 1);
+
+    //         let preferred_offset = previous_line_start + self.cursor_position.preferred_x;
+
+    //         let offset = std::cmp::min(
+    //             previous_line_start + previous_line_length - 1,
+    //             preferred_offset,
+    //         );
+
+    //         self.cursor_position.offset = offset;
+    //     }
+
+    //     context.notify()
+    // }
+
+    // fn move_down(&mut self, _: &MoveDown, context: &mut ViewContext<Self>) {
+    //     let block = self.content.block(self.cursor_position.block_index);
+    //     let block_line_length = block.line_length();
+    //     let line_index_in_block = block.line_of_offset(self.cursor_position.offset);
+
+    //     if line_index_in_block == block_line_length - 1 {
+    //         if self.cursor_position.block_index < self.content.blocks().len() - 1 {
+    //             let next_block_index = self.cursor_position.block_index + 1;
+    //             let next_block = self.content.block(next_block_index);
+
+    //             let first_line_length = next_block.length_of_line(0);
+    //             let first_line_length = if first_line_length == 0 {
+    //                 0
+    //             } else {
+    //                 if next_block.is_soft_wrapped_line(0) {
+    //                     first_line_length - 1
+    //                 } else {
+    //                     first_line_length
+    //                 }
+    //             };
+
+    //             let preferred_offset = self.cursor_position.preferred_x;
+
+    //             let offset = std::cmp::min(first_line_length, preferred_offset);
+
+    //             self.cursor_position.block_index = next_block_index;
+    //             self.cursor_position.offset = offset;
+    //         } else {
+    //             self.cursor_position.offset = block.length() - 1;
+    //         }
+    //     } else {
+    //         let next_line_start = block.line_start(line_index_in_block + 1);
+    //         let next_line_length = block.length_of_line(line_index_in_block + 1);
+    //         let is_soft_wrapped_line = block.is_soft_wrapped_line(line_index_in_block + 1);
+    //         let modifier_value = match is_soft_wrapped_line {
+    //             true => 1,
+    //             false => 0,
+    //         };
+
+    //         let preferred_offset = next_line_start + self.cursor_position.preferred_x;
+
+    //         let offset = std::cmp::min(
+    //             next_line_start + next_line_length - modifier_value,
+    //             preferred_offset,
+    //         );
+
+    //         self.cursor_position.offset = offset;
+    //     }
+
+    //     context.notify();
+    // }
+
+    // fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
+    //     self.cursor_position.block_index = 0;
+    //     self.cursor_position.offset = 0;
+
+    //     context.notify();
+    // }
+
+    // fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
+    //     let last_block_index = self.content.blocks().len() - 1;
+    //     let block = self.content.block(last_block_index);
+
+    //     self.cursor_position.block_index = last_block_index;
+    //     self.cursor_position.offset = block.length() - 1;
+
+    //     context.notify();
+    // }
+
+    // fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
+    //     let block = self.content.block(self.cursor_position.block_index);
+    //     let current_line_index = block.line_of_offset(self.cursor_position.offset);
+    //     let line_start = block.line_start(current_line_index);
+
+    //     self.cursor_position.offset = line_start;
+    //     self.cursor_position.preferred_x = 0;
+
+    //     context.notify();
+    // }
+
+    // fn move_end_of_line(&mut self, _: &MoveEndOfLine, context: &mut ViewContext<Self>) {
+    //     let block = self.content.block(self.cursor_position.block_index);
+    //     let current_line_index = block.line_of_offset(self.cursor_position.offset);
+    //     let line_start = block.line_start(current_line_index);
+    //     let line_length = block.length_of_line(current_line_index);
+    //     let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
+
+    //     // If line is empty (just a newline), stay at line_start, otherwise go to last character
+    //     let new_offset = if line_length == 0 {
+    //         line_start
+    //     } else {
+    //         line_start + line_length - 1
+    //     };
+
+    //     self.cursor_position.offset = new_offset;
+    //     self.cursor_position.preferred_x = new_preferred_x;
+
+    //     context.notify();
+    // }
+
+    // fn move_beginning_of_word(&mut self, _: &MoveBeginningOfWord, context: &mut ViewContext<Self>) {
+    //     let mut potential_position: Option<(usize, usize)> = None;
+    //     let mut current_block_index = self.cursor_position.block_index;
+    //     let mut current_offset = self.cursor_position.offset;
+
+    //     loop {
+    //         let block = self.content.block(current_block_index);
+
+    //         let position = block.previous_word_boundary(current_offset);
+
+    //         if let Some(offset) = position {
+    //             potential_position = Some((current_block_index, offset));
+    //             break;
+    //         }
+
+    //         if current_block_index == 0 {
+    //             break;
+    //         }
+
+    //         let previous_block_index = current_block_index - 1;
+    //         let previous_block = self.content.block(previous_block_index);
+    //         current_offset = previous_block.length();
+    //         current_block_index = previous_block_index;
+    //     }
+
+    //     let (block_index, offset) = match potential_position {
+    //         Some(position) => position,
+    //         None => (0, 0),
+    //     };
+
+    //     self.cursor_position.block_index = block_index;
+    //     self.cursor_position.offset = offset;
+
+    //     let block = self.content.block(block_index);
+    //     let line_of_offset = block.line_of_offset(offset);
+    //     let line_length = block.length_of_line(line_of_offset);
+    //     let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
+
+    //     self.cursor_position.preferred_x = preferred_x;
+
+    //     context.notify();
+    // }
+
+    //     fn move_end_of_word(&mut self, _: &MoveEndOfWord, context: &mut ViewContext<Self>) {
+    //         let mut potential_position: Option<(usize, usize)> = None;
+    //         let mut current_block_index = self.cursor_position.block_index;
+    //         let mut current_offset = self.cursor_position.offset;
+
+    //         loop {
+    //             let block = self.content.block(current_block_index);
+
+    //             let position = block.next_word_boundary(current_offset);
+
+    //             if let Some(offset) = position {
+    //                 potential_position = Some((current_block_index, offset));
+    //                 break;
+    //             }
+
+    //             if current_block_index == self.content.blocks().len() - 1 {
+    //                 break;
+    //             }
+
+    //             current_offset = 0;
+    //             current_block_index = current_block_index + 1;
+    //         }
+
+    //         let (block_index, offset) = match potential_position {
+    //             Some(position) => position,
+    //             None => {
+    //                 let block_index = self.content.blocks().len() - 1;
+    //                 let block = self.content.block(block_index);
+    //                 let length = if block.length() == 0 {
+    //                     0
+    //                 } else {
+    //                     block.length() - 1
+    //                 };
+
+    //                 (block_index, length)
+    //             }
+    //         };
+
+    //         self.cursor_position.block_index = block_index;
+    //         self.cursor_position.offset = offset;
+
+    //         let block = self.content.block(block_index);
+    //         let line_of_offset = block.line_of_offset(offset);
+    //         let line_length = block.length_of_line(line_of_offset);
+    //         let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
+
+    //         self.cursor_position.preferred_x = preferred_x;
+
+    //         context.notify();
+    //     }
 }
 
 impl FocusableView for Editor {
@@ -341,16 +361,16 @@ impl gpui::Render for Editor {
         div()
             .track_focus(&self.focus_handle(context))
             .key_context("editor")
-            .on_action(context.listener(Self::move_left))
-            .on_action(context.listener(Self::move_right))
-            .on_action(context.listener(Self::move_up))
-            .on_action(context.listener(Self::move_down))
-            .on_action(context.listener(Self::move_beginning_of_file))
-            .on_action(context.listener(Self::move_end_of_file))
-            .on_action(context.listener(Self::move_beginning_of_line))
-            .on_action(context.listener(Self::move_end_of_line))
-            .on_action(context.listener(Self::move_beginning_of_word))
-            .on_action(context.listener(Self::move_end_of_word))
+            // .on_action(context.listener(Self::move_left))
+            // .on_action(context.listener(Self::move_right))
+            // .on_action(context.listener(Self::move_up))
+            // .on_action(context.listener(Self::move_down))
+            // .on_action(context.listener(Self::move_beginning_of_file))
+            // .on_action(context.listener(Self::move_end_of_file))
+            // .on_action(context.listener(Self::move_beginning_of_line))
+            // .on_action(context.listener(Self::move_end_of_line))
+            // .on_action(context.listener(Self::move_beginning_of_word))
+            // .on_action(context.listener(Self::move_end_of_word))
             .pt_8()
             .group("editor-container")
             .child(
@@ -455,21 +475,23 @@ impl Element for EditorElement {
             .map(|mut block| block.render(context.text_system(), style.font(), font_size))
             .collect();
 
-        let cursor_position = content.cursor_position(
-            input.cursor_position.block_index,
-            input.cursor_position.offset,
-        );
+        let cursor = match input.cursor.clone() {
+            Cursor::Caret(caret) => {
+                let position = content.cursor_position(caret.position);
 
-        let cursor = fill(
-            Bounds::new(
-                point(
-                    bounds.left() + px(cursor_position.x as f32) * CHARACTER_WIDTH - px(1.),
-                    bounds.top() + context.line_height() * px(cursor_position.y as f32) + px(4.),
-                ),
-                size(px(2.), px(16.)),
-            ),
-            rgb(COLOR_BLUE_DARK),
-        );
+                fill(
+                    Bounds::new(
+                        point(
+                            bounds.left() + px(position.x as f32) * CHARACTER_WIDTH - px(1.),
+                            bounds.top() + context.line_height() * px(position.y as f32) + px(4.),
+                        ),
+                        size(px(2.), px(16.)),
+                    ),
+                    rgb(COLOR_BLUE_DARK),
+                )
+            }
+            Cursor::Selection(selection) => todo!(),
+        };
 
         PrepaintState {
             blocks: rendered_blocks,
