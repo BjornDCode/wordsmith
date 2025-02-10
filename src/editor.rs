@@ -125,49 +125,99 @@ impl Editor {
         };
     }
 
-    // fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
-    //     if self.cursor_position.offset == 0 {
-    //         if self.cursor_position.block_index > 0 {
-    //             let new_y = self.cursor_position.block_index - 1;
+    fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
+        let point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Left => selection.end,
+                SelectionDirection::Right => selection.start,
+            },
+        };
 
-    //             self.cursor_position.block_index = new_y;
-    //             self.cursor_position.offset = self.content.block_length(new_y) - 1;
-    //         }
-    //     } else {
-    //         let new_offset = self.cursor_position.offset - 1;
-    //         let block = self.content.block(self.cursor_position.block_index);
-    //         let line_in_block = block.line_of_offset(new_offset);
-    //         let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+        if point.offset == 0 {
+            if point.block_index > 0 {
+                let new_block_index = point.block_index - 1;
+                let block_length = self.content.block_length(new_block_index);
+                let new_offset = if block_length == 0 {
+                    0
+                } else {
+                    self.content.block_length(new_block_index) - 1
+                };
+                let new_block = self.content.block(new_block_index);
+                let last_line_index = new_block.line_length() - 1;
+                let last_line_length = new_block.length_of_line(last_line_index);
 
-    //         self.cursor_position.offset = new_offset;
-    //         self.cursor_position.preferred_x = new_preferred_x;
-    //     }
+                self.edit_location = EditLocation::Cursor(Cursor {
+                    position: CursorPoint {
+                        block_index: new_block_index,
+                        offset: new_offset,
+                    },
+                    preferred_x: last_line_length,
+                });
+            }
+        } else {
+            let new_offset = point.offset - 1;
+            let block = self.content.block(point.block_index);
+            let line_in_block = block.line_of_offset(new_offset);
+            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
 
-    //     context.notify();
-    // }
+            self.edit_location = EditLocation::Cursor(Cursor {
+                position: CursorPoint {
+                    block_index: point.block_index,
+                    offset: new_offset,
+                },
+                preferred_x: new_preferred_x,
+            });
+        }
 
-    // fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
-    //     let block_length = self.content.block_length(self.cursor_position.block_index) - 1;
+        context.notify();
+    }
 
-    //     if self.cursor_position.offset == block_length {
-    //         let new_y = self.cursor_position.block_index + 1;
+    fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
+        let point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Left => selection.start,
+                SelectionDirection::Right => selection.end,
+            },
+        };
+        let block_length = self.content.block_length(point.block_index);
 
-    //         if new_y < self.content.blocks().len() {
-    //             self.cursor_position.block_index += 1;
-    //             self.cursor_position.offset = 0;
-    //         }
-    //     } else {
-    //         let new_offset = self.cursor_position.offset + 1;
-    //         let block = self.content.block(self.cursor_position.block_index);
-    //         let line_in_block = block.line_of_offset(new_offset);
-    //         let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+        let block_length = if block_length == 0 {
+            0
+        } else {
+            self.content.block_length(point.block_index) - 1
+        };
 
-    //         self.cursor_position.offset = new_offset;
-    //         self.cursor_position.preferred_x = new_preferred_x;
-    //     }
+        if point.offset == block_length {
+            let new_block_index = point.block_index + 1;
 
-    //     context.notify();
-    // }
+            if new_block_index < self.content.blocks().len() {
+                self.edit_location = EditLocation::Cursor(Cursor {
+                    position: CursorPoint {
+                        block_index: new_block_index,
+                        offset: 0,
+                    },
+                    preferred_x: 0,
+                });
+            }
+        } else {
+            let new_offset = point.offset + 1;
+            let block = self.content.block(point.block_index);
+            let line_in_block = block.line_of_offset(new_offset);
+            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+
+            self.edit_location = EditLocation::Cursor(Cursor {
+                position: CursorPoint {
+                    block_index: point.block_index,
+                    offset: new_offset,
+                },
+                preferred_x: new_preferred_x,
+            });
+        }
+
+        context.notify();
+    }
 
     // fn move_up(&mut self, _: &MoveUp, context: &mut ViewContext<Self>) {
     //     let current_block = self.content.block(self.cursor_position.block_index);
@@ -267,53 +317,91 @@ impl Editor {
     //     context.notify();
     // }
 
-    // fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
-    //     self.cursor_position.block_index = 0;
-    //     self.cursor_position.offset = 0;
+    fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
+        self.edit_location = EditLocation::Cursor(Cursor {
+            position: CursorPoint {
+                block_index: 0,
+                offset: 0,
+            },
+            preferred_x: 0,
+        });
 
-    //     context.notify();
-    // }
+        context.notify();
+    }
 
-    // fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
-    //     let last_block_index = self.content.blocks().len() - 1;
-    //     let block = self.content.block(last_block_index);
+    fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
+        let last_block_index = self.content.blocks().len() - 1;
+        let block = self.content.block(last_block_index);
+        let last_line_index = block.line_length() - 1;
+        let last_line_length = block.length_of_line(last_line_index);
 
-    //     self.cursor_position.block_index = last_block_index;
-    //     self.cursor_position.offset = block.length() - 1;
+        self.edit_location = EditLocation::Cursor(Cursor {
+            position: CursorPoint {
+                block_index: last_block_index,
+                offset: block.length() - 1,
+            },
+            preferred_x: last_line_length,
+        });
 
-    //     context.notify();
-    // }
+        context.notify();
+    }
 
-    // fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
-    //     let block = self.content.block(self.cursor_position.block_index);
-    //     let current_line_index = block.line_of_offset(self.cursor_position.offset);
-    //     let line_start = block.line_start(current_line_index);
+    fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
+        let point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Left => selection.end,
+                SelectionDirection::Right => selection.start,
+            },
+        };
 
-    //     self.cursor_position.offset = line_start;
-    //     self.cursor_position.preferred_x = 0;
+        let block = self.content.block(point.block_index);
+        let current_line_index = block.line_of_offset(point.offset);
+        let line_start = block.line_start(current_line_index);
 
-    //     context.notify();
-    // }
+        self.edit_location = EditLocation::Cursor(Cursor {
+            position: CursorPoint {
+                block_index: point.block_index,
+                offset: line_start,
+            },
+            preferred_x: 0,
+        });
 
-    // fn move_end_of_line(&mut self, _: &MoveEndOfLine, context: &mut ViewContext<Self>) {
-    //     let block = self.content.block(self.cursor_position.block_index);
-    //     let current_line_index = block.line_of_offset(self.cursor_position.offset);
-    //     let line_start = block.line_start(current_line_index);
-    //     let line_length = block.length_of_line(current_line_index);
-    //     let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
+        context.notify();
+    }
 
-    //     // If line is empty (just a newline), stay at line_start, otherwise go to last character
-    //     let new_offset = if line_length == 0 {
-    //         line_start
-    //     } else {
-    //         line_start + line_length - 1
-    //     };
+    fn move_end_of_line(&mut self, _: &MoveEndOfLine, context: &mut ViewContext<Self>) {
+        let point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Left => selection.start,
+                SelectionDirection::Right => selection.end,
+            },
+        };
 
-    //     self.cursor_position.offset = new_offset;
-    //     self.cursor_position.preferred_x = new_preferred_x;
+        let block = self.content.block(point.block_index);
+        let current_line_index = block.line_of_offset(point.offset);
+        let line_start = block.line_start(current_line_index);
+        let line_length = block.length_of_line(current_line_index);
+        let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
 
-    //     context.notify();
-    // }
+        // If line is empty (just a newline), stay at line_start, otherwise go to last character
+        let new_offset = if line_length == 0 {
+            line_start
+        } else {
+            line_start + line_length - 1
+        };
+
+        self.edit_location = EditLocation::Cursor(Cursor {
+            position: CursorPoint {
+                block_index: point.block_index,
+                offset: new_offset,
+            },
+            preferred_x: new_preferred_x,
+        });
+
+        context.notify();
+    }
 
     // fn move_beginning_of_word(&mut self, _: &MoveBeginningOfWord, context: &mut ViewContext<Self>) {
     //     let mut potential_position: Option<(usize, usize)> = None;
@@ -421,14 +509,14 @@ impl gpui::Render for Editor {
         div()
             .track_focus(&self.focus_handle(context))
             .key_context("editor")
-            // .on_action(context.listener(Self::move_left))
-            // .on_action(context.listener(Self::move_right))
+            .on_action(context.listener(Self::move_left))
+            .on_action(context.listener(Self::move_right))
             // .on_action(context.listener(Self::move_up))
             // .on_action(context.listener(Self::move_down))
-            // .on_action(context.listener(Self::move_beginning_of_file))
-            // .on_action(context.listener(Self::move_end_of_file))
-            // .on_action(context.listener(Self::move_beginning_of_line))
-            // .on_action(context.listener(Self::move_end_of_line))
+            .on_action(context.listener(Self::move_beginning_of_file))
+            .on_action(context.listener(Self::move_end_of_file))
+            .on_action(context.listener(Self::move_beginning_of_line))
+            .on_action(context.listener(Self::move_end_of_line))
             // .on_action(context.listener(Self::move_beginning_of_word))
             // .on_action(context.listener(Self::move_end_of_word))
             .pt_8()
