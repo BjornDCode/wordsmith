@@ -11,8 +11,8 @@ use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
-    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectLeft, COLOR_BLUE_DARK,
-    COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
+    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectLeft, SelectRight,
+    COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -172,64 +172,30 @@ impl Editor {
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => {
                 let position = self.left_position(cursor.position);
-                let preferred_x = self.preferred_x(position.clone());
 
-                self.move_to(position, preferred_x, context);
+                self.move_to(position, context);
             }
             EditLocation::Selection(selection) => {
                 let position = selection.smallest();
 
-                let preferred_x = self.preferred_x(position.clone());
-
-                self.move_to(position, preferred_x, context);
+                self.move_to(position, context);
             }
         }
     }
 
     fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
-        let point = match self.edit_location.clone() {
-            EditLocation::Cursor(cursor) => cursor.position,
-            EditLocation::Selection(selection) => match selection.direction() {
-                SelectionDirection::Backwards => selection.start,
-                SelectionDirection::Forwards => selection.end,
-            },
-        };
-        let block_length = self.content.block_length(point.block_index);
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                let position = self.right_position(cursor.position);
 
-        let block_length = if block_length == 0 {
-            0
-        } else {
-            self.content.block_length(point.block_index) - 1
-        };
-
-        if point.offset == block_length {
-            let new_block_index = point.block_index + 1;
-
-            if new_block_index < self.content.blocks().len() {
-                self.edit_location = EditLocation::Cursor(Cursor {
-                    position: CursorPoint {
-                        block_index: new_block_index,
-                        offset: 0,
-                    },
-                    preferred_x: 0,
-                });
+                self.move_to(position, context);
             }
-        } else {
-            let new_offset = point.offset + 1;
-            let block = self.content.block(point.block_index);
-            let line_in_block = block.line_of_offset(new_offset);
-            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+            EditLocation::Selection(selection) => {
+                let position = selection.largest();
 
-            self.edit_location = EditLocation::Cursor(Cursor {
-                position: CursorPoint {
-                    block_index: point.block_index,
-                    offset: new_offset,
-                },
-                preferred_x: new_preferred_x,
-            });
+                self.move_to(position, context);
+            }
         }
-
-        context.notify();
     }
 
     fn move_up(&mut self, _: &MoveUp, context: &mut ViewContext<Self>) {
@@ -659,12 +625,22 @@ impl Editor {
         }
     }
 
-    fn move_to(
-        &mut self,
-        position: CursorPoint,
-        preferred_x: usize,
-        context: &mut ViewContext<Self>,
-    ) {
+    fn select_right(&mut self, _: &SelectRight, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.right_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => {
+                self.select(selection.start, self.right_position(selection.end), context)
+            }
+        }
+    }
+
+    fn move_to(&mut self, position: CursorPoint, context: &mut ViewContext<Self>) {
+        let preferred_x = self.preferred_x(position.clone());
+
         self.edit_location = EditLocation::Cursor(Cursor {
             position,
             preferred_x,
@@ -674,7 +650,11 @@ impl Editor {
     }
 
     fn select(&mut self, start: CursorPoint, end: CursorPoint, context: &mut ViewContext<Self>) {
-        self.edit_location = EditLocation::Selection(Selection { start, end });
+        if start == end {
+            self.move_to(start, context);
+        } else {
+            self.edit_location = EditLocation::Selection(Selection { start, end });
+        }
 
         context.notify();
     }
@@ -705,6 +685,25 @@ impl Editor {
 
         return CursorPoint::new(point.block_index, point.offset - 1);
     }
+
+    fn right_position(&self, point: CursorPoint) -> CursorPoint {
+        let block_length = self.content.block_length(point.block_index);
+        let block_length = if block_length == 0 {
+            0
+        } else {
+            self.content.block_length(point.block_index) - 1
+        };
+
+        if point.block_index == self.content.blocks().len() - 1 && point.offset == block_length {
+            return point;
+        }
+
+        if point.offset == block_length {
+            return CursorPoint::new(point.block_index + 1, 0);
+        }
+
+        return CursorPoint::new(point.block_index, point.offset + 1);
+    }
 }
 
 impl FocusableView for Editor {
@@ -729,6 +728,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_beginning_of_word))
             .on_action(context.listener(Self::move_end_of_word))
             .on_action(context.listener(Self::select_left))
+            .on_action(context.listener(Self::select_right))
             .pt_8()
             .group("editor-container")
             .child(
@@ -841,9 +841,9 @@ impl Element for EditorElement {
                     Bounds::new(
                         point(
                             bounds.left() + px(position.x as f32) * CHARACTER_WIDTH - px(1.),
-                            bounds.top() + context.line_height() * px(position.y as f32) + px(4.),
+                            bounds.top() + context.line_height() * px(position.y as f32) + px(2.),
                         ),
-                        size(px(2.), px(16.)),
+                        size(px(2.), px(20.)),
                     ),
                     rgb(COLOR_BLUE_DARK),
                 )];

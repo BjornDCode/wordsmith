@@ -48,6 +48,7 @@ actions!(
         MoveBeginningOfWord,
         MoveEndOfWord,
         SelectLeft,
+        SelectRight,
     ]
 );
 impl_actions!(app, [SetMode]);
@@ -88,6 +89,7 @@ fn main() {
                 KeyBinding::new("alt-left", MoveBeginningOfWord, "editor".into()),
                 KeyBinding::new("alt-right", MoveEndOfWord, "editor".into()),
                 KeyBinding::new("shift-left", SelectLeft, "editor".into()),
+                KeyBinding::new("shift-right", SelectRight, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());
