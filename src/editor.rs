@@ -11,7 +11,7 @@ use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
-    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectLeft, SelectRight,
+    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectLeft, SelectRight, SelectUp,
     COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
 };
 
@@ -151,13 +151,13 @@ enum SelectionDirection {
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         let edit_location = EditLocation::Selection(Selection {
+            start: CursorPoint {
+                offset: 120,
+                block_index: 2,
+            },
             end: CursorPoint {
                 offset: 10,
-                block_index: 0,
-            },
-            start: CursorPoint {
-                offset: 11,
-                block_index: 0,
+                block_index: 2,
             },
         });
 
@@ -172,13 +172,15 @@ impl Editor {
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => {
                 let position = self.left_position(cursor.position);
+                let preferred_x = self.preferred_x(position.clone());
 
-                self.move_to(position, context);
+                self.move_to(position, preferred_x, context);
             }
             EditLocation::Selection(selection) => {
                 let position = selection.smallest();
+                let preferred_x = self.preferred_x(position.clone());
 
-                self.move_to(position, context);
+                self.move_to(position, preferred_x, context);
             }
         }
     }
@@ -187,125 +189,30 @@ impl Editor {
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => {
                 let position = self.right_position(cursor.position);
+                let preferred_x = self.preferred_x(position.clone());
 
-                self.move_to(position, context);
+                self.move_to(position, preferred_x, context);
             }
             EditLocation::Selection(selection) => {
                 let position = selection.largest();
+                let preferred_x = self.preferred_x(position.clone());
 
-                self.move_to(position, context);
+                self.move_to(position, preferred_x, context);
             }
         }
     }
 
     fn move_up(&mut self, _: &MoveUp, context: &mut ViewContext<Self>) {
-        let point = match self.edit_location.clone() {
-            EditLocation::Cursor(cursor) => cursor.position,
-            EditLocation::Selection(selection) => match selection.direction() {
-                SelectionDirection::Backwards => selection.end,
-                SelectionDirection::Forwards => selection.start,
-            },
+        let starting_point = self
+            .edit_location
+            .starting_point(SelectionDirection::Backwards);
+        let position = self.up_position(starting_point.clone());
+        let preferred_x = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.preferred_x,
+            EditLocation::Selection(selection) => self.preferred_x(selection.start),
         };
-        let current_block = self.content.block(point.block_index);
-        let line_index_in_block = current_block.line_of_offset(point.offset);
 
-        if line_index_in_block == 0 {
-            if point.block_index > 0 {
-                let new_block_index = point.block_index - 1;
-
-                let previous_block = self.content.block(new_block_index);
-                let previous_block_line_length = previous_block.line_length();
-                let start_of_last_line_in_previous_block =
-                    previous_block.line_start(previous_block_line_length - 1);
-
-                let last_line_length =
-                    previous_block.length_of_line(previous_block_line_length - 1);
-
-                let old_preferred_x = match self.edit_location.clone() {
-                    EditLocation::Cursor(cursor) => cursor.preferred_x,
-                    EditLocation::Selection(selection) => match selection.direction() {
-                        SelectionDirection::Backwards => {
-                            let block = self.content.block(point.block_index);
-                            let line_index = block.line_of_offset(selection.end.offset);
-                            let offset_in_line =
-                                block.offset_in_line(line_index, selection.end.offset);
-
-                            offset_in_line
-                        }
-                        SelectionDirection::Forwards => {
-                            let block = self.content.block(point.block_index);
-                            let line_index = block.line_of_offset(selection.start.offset);
-                            let offset_in_line =
-                                block.offset_in_line(line_index, selection.start.offset);
-
-                            offset_in_line
-                        }
-                    },
-                };
-                let preferred_offset = start_of_last_line_in_previous_block + old_preferred_x;
-
-                let offset = std::cmp::min(
-                    start_of_last_line_in_previous_block + last_line_length,
-                    preferred_offset,
-                );
-
-                self.edit_location = EditLocation::Cursor(Cursor {
-                    position: CursorPoint {
-                        block_index: new_block_index,
-                        offset,
-                    },
-                    preferred_x: old_preferred_x,
-                });
-            } else {
-                self.edit_location = EditLocation::Cursor(Cursor {
-                    position: CursorPoint {
-                        block_index: 0,
-                        offset: 0,
-                    },
-                    preferred_x: 0,
-                });
-            }
-        } else {
-            let previous_line_length = current_block.length_of_line(line_index_in_block - 1);
-            let previous_line_start = current_block.line_start(line_index_in_block - 1);
-
-            let old_preferred_x = match self.edit_location.clone() {
-                EditLocation::Cursor(cursor) => cursor.preferred_x,
-                EditLocation::Selection(selection) => match selection.direction() {
-                    SelectionDirection::Backwards => {
-                        let block = self.content.block(point.block_index);
-                        let line_index = block.line_of_offset(selection.end.offset);
-                        let offset_in_line = block.offset_in_line(line_index, selection.end.offset);
-
-                        offset_in_line
-                    }
-                    SelectionDirection::Forwards => {
-                        let block = self.content.block(point.block_index);
-                        let line_index = block.line_of_offset(selection.start.offset);
-                        let offset_in_line =
-                            block.offset_in_line(line_index, selection.start.offset);
-
-                        offset_in_line
-                    }
-                },
-            };
-            let preferred_offset = previous_line_start + old_preferred_x;
-
-            let offset = std::cmp::min(
-                previous_line_start + previous_line_length - 1,
-                preferred_offset,
-            );
-
-            self.edit_location = EditLocation::Cursor(Cursor {
-                position: CursorPoint {
-                    block_index: point.block_index,
-                    offset,
-                },
-                preferred_x: old_preferred_x,
-            });
-        }
-
-        context.notify()
+        self.move_to(position, preferred_x, context);
     }
 
     fn move_down(&mut self, _: &MoveDown, context: &mut ViewContext<Self>) {
@@ -638,9 +545,20 @@ impl Editor {
         }
     }
 
-    fn move_to(&mut self, position: CursorPoint, context: &mut ViewContext<Self>) {
-        let preferred_x = self.preferred_x(position.clone());
+    fn select_up(&mut self, _: &SelectUp, context: &mut ViewContext<Self>) {
+        let starting_point = self
+            .edit_location
+            .starting_point(SelectionDirection::Backwards);
 
+        self.select_to(self.up_position(starting_point), context);
+    }
+
+    fn move_to(
+        &mut self,
+        position: CursorPoint,
+        preferred_x: usize,
+        context: &mut ViewContext<Self>,
+    ) {
         self.edit_location = EditLocation::Cursor(Cursor {
             position,
             preferred_x,
@@ -651,12 +569,23 @@ impl Editor {
 
     fn select(&mut self, start: CursorPoint, end: CursorPoint, context: &mut ViewContext<Self>) {
         if start == end {
-            self.move_to(start, context);
+            let preferred_x = self.preferred_x(start.clone());
+
+            self.move_to(start, preferred_x, context);
         } else {
             self.edit_location = EditLocation::Selection(Selection { start, end });
         }
 
         context.notify();
+    }
+
+    fn select_to(&mut self, end: CursorPoint, context: &mut ViewContext<Self>) {
+        let start = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.start,
+        };
+
+        self.select(start, end, context);
     }
 
     fn preferred_x(&self, position: CursorPoint) -> usize {
@@ -704,6 +633,54 @@ impl Editor {
 
         return CursorPoint::new(point.block_index, point.offset + 1);
     }
+
+    fn up_position(&self, point: CursorPoint) -> CursorPoint {
+        let block = self.content.block(point.block_index);
+        let line_index = block.line_of_offset(point.offset);
+
+        if point.block_index == 0 && line_index == 0 {
+            return CursorPoint::new(0, 0);
+        }
+
+        if line_index == 0 {
+            let previous_block = self.content.block(point.block_index - 1);
+            let previous_block_line_length = previous_block.line_length();
+            let previous_line_start = previous_block.line_start(previous_block_line_length - 1);
+            let previous_line_length =
+                previous_block.length_of_line(previous_block_line_length - 1);
+            let previous_line_end = if previous_line_start == 0 && previous_line_length == 0 {
+                0
+            } else {
+                previous_line_start + previous_line_length - 1
+            };
+
+            let preferred_x = match self.edit_location.clone() {
+                EditLocation::Cursor(cursor) => cursor.preferred_x,
+                EditLocation::Selection(selection) => self.preferred_x(selection.start),
+            };
+            let preferred_offset = previous_line_start + preferred_x;
+
+            let offset = std::cmp::min(previous_line_end, preferred_offset);
+
+            return CursorPoint::new(point.block_index - 1, offset);
+        }
+
+        let previous_line_start = block.line_start(line_index - 1);
+        let previous_line_length = block.length_of_line(line_index - 1);
+
+        let preferred_x = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.preferred_x,
+            EditLocation::Selection(selection) => self.preferred_x(selection.start),
+        };
+        let preferred_offset = previous_line_start + preferred_x;
+
+        let offset = std::cmp::min(
+            previous_line_start + previous_line_length - 1,
+            preferred_offset,
+        );
+
+        return CursorPoint::new(point.block_index, offset);
+    }
 }
 
 impl FocusableView for Editor {
@@ -729,6 +706,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_end_of_word))
             .on_action(context.listener(Self::select_left))
             .on_action(context.listener(Self::select_right))
+            .on_action(context.listener(Self::select_up))
             .pt_8()
             .group("editor-container")
             .child(
@@ -893,7 +871,11 @@ impl Element for EditorElement {
                         let top = bounds.top()
                             + px(block_start_line_index as f32) * context.line_height()
                             + px(line_index as f32) * context.line_height();
-                        let width = (px(end as f32) - px(start as f32)) * CHARACTER_WIDTH + px(2.);
+                        let width = if line_range.start == line_range.end - 1 {
+                            (px(end as f32) - px(start as f32)) * CHARACTER_WIDTH + px(2.)
+                        } else {
+                            px(end as f32) * CHARACTER_WIDTH + px(2.)
+                        };
 
                         let bounds =
                             Bounds::new(point(left, top), size(width, context.line_height()));
