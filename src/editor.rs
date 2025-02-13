@@ -821,13 +821,13 @@ impl Element for EditorElement {
                             0
                         };
                         let end = if line_index == line_range.end - 1 {
-                            let offset = if block_index == 0 {
-                                block.offset_in_line(line_index, min)
-                            } else {
+                            if block_index == block_indexes.end - 1 {
                                 block.offset_in_line(line_index, max)
-                            };
+                            } else {
+                                let offset = block.offset_in_line(line_index, min);
 
-                            offset
+                                CHARACTER_COUNT_PER_LINE - offset
+                            }
                         } else {
                             CHARACTER_COUNT_PER_LINE - start
                         };
