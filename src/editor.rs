@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cmp::Ordering;
 use std::ops::Index;
 
@@ -329,57 +330,113 @@ impl Editor {
         context.notify()
     }
 
-    // fn move_down(&mut self, _: &MoveDown, context: &mut ViewContext<Self>) {
-    //     let block = self.content.block(self.cursor_position.block_index);
-    //     let block_line_length = block.line_length();
-    //     let line_index_in_block = block.line_of_offset(self.cursor_position.offset);
+    fn move_down(&mut self, _: &MoveDown, context: &mut ViewContext<Self>) {
+        let point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Left => selection.start,
+                SelectionDirection::Right => selection.end,
+            },
+        };
+        let block = self.content.block(point.block_index);
+        let block_line_length = block.line_length();
+        let line_index_in_block = block.line_of_offset(point.offset);
 
-    //     if line_index_in_block == block_line_length - 1 {
-    //         if self.cursor_position.block_index < self.content.blocks().len() - 1 {
-    //             let next_block_index = self.cursor_position.block_index + 1;
-    //             let next_block = self.content.block(next_block_index);
+        if line_index_in_block == block_line_length - 1 {
+            if point.block_index < self.content.blocks().len() - 1 {
+                let next_block_index = point.block_index + 1;
+                let next_block = self.content.block(next_block_index);
 
-    //             let first_line_length = next_block.length_of_line(0);
-    //             let first_line_length = if first_line_length == 0 {
-    //                 0
-    //             } else {
-    //                 if next_block.is_soft_wrapped_line(0) {
-    //                     first_line_length - 1
-    //                 } else {
-    //                     first_line_length
-    //                 }
-    //             };
+                let first_line_length = next_block.length_of_line(0);
+                let first_line_length = if first_line_length == 0 {
+                    0
+                } else {
+                    if next_block.is_soft_wrapped_line(0) {
+                        first_line_length - 1
+                    } else {
+                        first_line_length
+                    }
+                };
 
-    //             let preferred_offset = self.cursor_position.preferred_x;
+                let preferred_offset = match self.edit_location.clone() {
+                    EditLocation::Cursor(cursor) => cursor.preferred_x,
+                    EditLocation::Selection(selection) => match selection.direction() {
+                        SelectionDirection::Left => {
+                            let block = self.content.block(point.block_index);
+                            let line_index = block.line_of_offset(selection.end.offset);
+                            let offset_in_line =
+                                block.offset_in_line(line_index, selection.end.offset);
 
-    //             let offset = std::cmp::min(first_line_length, preferred_offset);
+                            offset_in_line
+                        }
+                        SelectionDirection::Right => {
+                            let block = self.content.block(point.block_index);
+                            let line_index = block.line_of_offset(selection.start.offset);
+                            let offset_in_line =
+                                block.offset_in_line(line_index, selection.start.offset);
 
-    //             self.cursor_position.block_index = next_block_index;
-    //             self.cursor_position.offset = offset;
-    //         } else {
-    //             self.cursor_position.offset = block.length() - 1;
-    //         }
-    //     } else {
-    //         let next_line_start = block.line_start(line_index_in_block + 1);
-    //         let next_line_length = block.length_of_line(line_index_in_block + 1);
-    //         let is_soft_wrapped_line = block.is_soft_wrapped_line(line_index_in_block + 1);
-    //         let modifier_value = match is_soft_wrapped_line {
-    //             true => 1,
-    //             false => 0,
-    //         };
+                            offset_in_line
+                        }
+                    },
+                };
 
-    //         let preferred_offset = next_line_start + self.cursor_position.preferred_x;
+                let offset = std::cmp::min(first_line_length, preferred_offset);
 
-    //         let offset = std::cmp::min(
-    //             next_line_start + next_line_length - modifier_value,
-    //             preferred_offset,
-    //         );
+                self.edit_location = EditLocation::Cursor(Cursor {
+                    position: CursorPoint {
+                        block_index: next_block_index,
+                        offset,
+                    },
+                    preferred_x: preferred_offset,
+                });
+            } else {
+                let last_last_index = block.line_length() - 1;
+                let last_line_length = block.length_of_line(last_last_index);
+                self.edit_location = EditLocation::Cursor(Cursor {
+                    position: CursorPoint {
+                        block_index: point.block_index,
+                        offset: block.length() - 1,
+                    },
+                    preferred_x: last_line_length,
+                });
+            }
+        } else {
+            let next_line_start = block.line_start(line_index_in_block + 1);
+            let next_line_length = block.length_of_line(line_index_in_block + 1);
+            let is_soft_wrapped_line = block.is_soft_wrapped_line(line_index_in_block + 1);
+            let modifier_value = match is_soft_wrapped_line {
+                true => 1,
+                false => 0,
+            };
 
-    //         self.cursor_position.offset = offset;
-    //     }
+            let old_preferred_x = match self.edit_location.clone() {
+                EditLocation::Cursor(cursor) => cursor.preferred_x,
+                EditLocation::Selection(_selection) => {
+                    let block = self.content.block(point.block_index);
+                    let line_index = block.line_of_offset(point.offset);
+                    let offset_in_line = block.offset_in_line(line_index, point.offset);
 
-    //     context.notify();
-    // }
+                    offset_in_line
+                }
+            };
+            let preferred_offset = next_line_start + old_preferred_x;
+
+            let offset = std::cmp::min(
+                next_line_start + next_line_length - modifier_value,
+                preferred_offset,
+            );
+
+            self.edit_location = EditLocation::Cursor(Cursor {
+                position: CursorPoint {
+                    block_index: point.block_index,
+                    offset,
+                },
+                preferred_x: old_preferred_x,
+            });
+        }
+
+        context.notify();
+    }
 
     fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
         self.edit_location = EditLocation::Cursor(Cursor {
@@ -576,7 +633,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_left))
             .on_action(context.listener(Self::move_right))
             .on_action(context.listener(Self::move_up))
-            // .on_action(context.listener(Self::move_down))
+            .on_action(context.listener(Self::move_down))
             .on_action(context.listener(Self::move_beginning_of_file))
             .on_action(context.listener(Self::move_end_of_file))
             .on_action(context.listener(Self::move_beginning_of_line))
@@ -738,7 +795,7 @@ impl Element for EditorElement {
                                 block.offset_in_line(line_index, max)
                             };
 
-                            CHARACTER_COUNT_PER_LINE - offset
+                            offset
                         } else {
                             CHARACTER_COUNT_PER_LINE - start
                         };
