@@ -50,6 +50,7 @@ actions!(
         SelectLeft,
         SelectRight,
         SelectUp,
+        SelectDown,
     ]
 );
 impl_actions!(app, [SetMode]);
@@ -92,6 +93,7 @@ fn main() {
                 KeyBinding::new("shift-left", SelectLeft, "editor".into()),
                 KeyBinding::new("shift-right", SelectRight, "editor".into()),
                 KeyBinding::new("shift-up", SelectUp, "editor".into()),
+                KeyBinding::new("shift-down", SelectDown, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());
