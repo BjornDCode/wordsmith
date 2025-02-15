@@ -12,8 +12,8 @@ use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
     MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectBeginningOfFile, SelectDown,
-    SelectLeft, SelectRight, SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM,
-    COLOR_GRAY_800, COLOR_PINK,
+    SelectEndOfFile, SelectLeft, SelectRight, SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT,
+    COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -237,20 +237,13 @@ impl Editor {
     }
 
     fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
-        let last_block_index = self.content.blocks().len() - 1;
-        let block = self.content.block(last_block_index);
+        let position = self.end_of_file_position();
+
+        let block = self.content.block(position.block_index);
         let last_line_index = block.line_length() - 1;
-        let last_line_length = block.length_of_line(last_line_index);
+        let preferred_x = block.length_of_line(last_line_index);
 
-        self.edit_location = EditLocation::Cursor(Cursor {
-            position: CursorPoint {
-                block_index: last_block_index,
-                offset: block.length() - 1,
-            },
-            preferred_x: last_line_length,
-        });
-
-        context.notify();
+        self.move_to(position, preferred_x, context);
     }
 
     fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
@@ -447,19 +440,35 @@ impl Editor {
     }
 
     fn select_up(&mut self, _: &SelectUp, context: &mut ViewContext<Self>) {
-        let starting_point = self
-            .edit_location
-            .starting_point(SelectionDirection::Backwards);
-
-        self.select_to(self.up_position(starting_point), context);
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.up_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.up_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => {
+                    self.select(selection.start, self.up_position(selection.end), context)
+                }
+            },
+        };
     }
 
     fn select_down(&mut self, _: &SelectDown, context: &mut ViewContext<Self>) {
-        let starting_point = self
-            .edit_location
-            .starting_point(SelectionDirection::Forwards);
-
-        self.select_to(self.down_position(starting_point), context);
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.down_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.down_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => {
+                    self.select(selection.start, self.down_position(selection.end), context)
+                }
+            },
+        };
     }
 
     fn select_beginning_of_file(
@@ -473,6 +482,15 @@ impl Editor {
         };
 
         self.select(starting_point, self.beginning_of_file_position(), context);
+    }
+
+    fn select_end_of_file(&mut self, _: &SelectEndOfFile, context: &mut ViewContext<Self>) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.start,
+        };
+
+        self.select(starting_point, self.end_of_file_position(), context);
     }
 
     fn move_to(
@@ -667,6 +685,15 @@ impl Editor {
     fn beginning_of_file_position(&self) -> CursorPoint {
         return CursorPoint::new(0, 0);
     }
+
+    fn end_of_file_position(&self) -> CursorPoint {
+        let block_index = self.content.blocks().len() - 1;
+
+        let block = self.content.block(block_index);
+        let offset = block.length() - 1;
+
+        return CursorPoint::new(block_index, offset);
+    }
 }
 
 impl FocusableView for Editor {
@@ -695,6 +722,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::select_up))
             .on_action(context.listener(Self::select_down))
             .on_action(context.listener(Self::select_beginning_of_file))
+            .on_action(context.listener(Self::select_end_of_file))
             .pt_8()
             .group("editor-container")
             .child(

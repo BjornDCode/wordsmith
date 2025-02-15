@@ -51,7 +51,8 @@ actions!(
         SelectRight,
         SelectUp,
         SelectDown,
-        SelectBeginningOfFile
+        SelectBeginningOfFile,
+        SelectEndOfFile
     ]
 );
 impl_actions!(app, [SetMode]);
@@ -96,6 +97,7 @@ fn main() {
                 KeyBinding::new("shift-up", SelectUp, "editor".into()),
                 KeyBinding::new("shift-down", SelectDown, "editor".into()),
                 KeyBinding::new("cmd-shift-up", SelectBeginningOfFile, "editor".into()),
+                KeyBinding::new("cmd-shift-down", SelectEndOfFile, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());
