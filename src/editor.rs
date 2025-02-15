@@ -11,8 +11,9 @@ use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
-    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectDown, SelectLeft, SelectRight,
-    SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
+    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectBeginningOfFile, SelectDown,
+    SelectLeft, SelectRight, SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM,
+    COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -230,15 +231,9 @@ impl Editor {
     }
 
     fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
-        self.edit_location = EditLocation::Cursor(Cursor {
-            position: CursorPoint {
-                block_index: 0,
-                offset: 0,
-            },
-            preferred_x: 0,
-        });
+        let position = self.beginning_of_file_position();
 
-        context.notify();
+        self.move_to(position, 0, context);
     }
 
     fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
@@ -467,6 +462,19 @@ impl Editor {
         self.select_to(self.down_position(starting_point), context);
     }
 
+    fn select_beginning_of_file(
+        &mut self,
+        _: &SelectBeginningOfFile,
+        context: &mut ViewContext<Self>,
+    ) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.start,
+        };
+
+        self.select(starting_point, self.beginning_of_file_position(), context);
+    }
+
     fn move_to(
         &mut self,
         position: CursorPoint,
@@ -655,6 +663,10 @@ impl Editor {
 
         return CursorPoint::new(point.block_index, offset);
     }
+
+    fn beginning_of_file_position(&self) -> CursorPoint {
+        return CursorPoint::new(0, 0);
+    }
 }
 
 impl FocusableView for Editor {
@@ -682,6 +694,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::select_right))
             .on_action(context.listener(Self::select_up))
             .on_action(context.listener(Self::select_down))
+            .on_action(context.listener(Self::select_beginning_of_file))
             .pt_8()
             .group("editor-container")
             .child(
