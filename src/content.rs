@@ -150,6 +150,12 @@ impl Block {
         let mut line_index: usize = 0;
         let mut processed_offset = 0;
 
+        let block_length = self.length();
+
+        if offset > 0 && offset == block_length {
+            return lines.len() - 1;
+        }
+
         for (index, line) in lines {
             processed_offset += line.len();
 

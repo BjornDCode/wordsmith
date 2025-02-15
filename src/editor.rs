@@ -152,11 +152,11 @@ impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
         let edit_location = EditLocation::Selection(Selection {
             start: CursorPoint {
-                offset: 120,
-                block_index: 2,
+                offset: 2,
+                block_index: 4,
             },
             end: CursorPoint {
-                offset: 10,
+                offset: 60,
                 block_index: 2,
             },
         });
@@ -832,17 +832,17 @@ impl Element for EditorElement {
                 let mut rectangles = vec![];
                 let smallest_point = std::cmp::min(selection.start.clone(), selection.end.clone());
                 let largest_point = std::cmp::max(selection.start.clone(), selection.end.clone());
-                let block_indexes = smallest_point.block_index..largest_point.block_index + 1;
+                let block_range = smallest_point.block_index..largest_point.block_index + 1;
 
-                for block_index in block_indexes.clone() {
+                for block_index in block_range.clone() {
                     let block_start_line_index = content.block_start(block_index);
                     let block = content.block(block_index);
-                    let min = if block_index == block_indexes.start {
+                    let min = if block_index == block_range.start {
                         smallest_point.offset
                     } else {
                         0
                     };
-                    let max = if block_index == block_indexes.end - 1 {
+                    let max = if block_index == block_range.end - 1 {
                         largest_point.offset
                     } else {
                         block.length()
@@ -855,8 +855,10 @@ impl Element for EditorElement {
                         } else {
                             0
                         };
-                        let end = if line_index == line_range.end - 1 {
-                            if block_index == block_indexes.end - 1 {
+                        let end = if block_index == block_range.end - 1
+                            && line_index == line_range.end - 1
+                        {
+                            if block_index == block_range.end - 1 {
                                 block.offset_in_line(line_index, max)
                             } else {
                                 let offset = block.offset_in_line(line_index, min);
