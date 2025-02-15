@@ -11,9 +11,9 @@ use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
-    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectBeginningOfFile, SelectDown,
-    SelectEndOfFile, SelectLeft, SelectRight, SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT,
-    COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
+    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectBeginningOfFile,
+    SelectBeginningOfLine, SelectDown, SelectEndOfFile, SelectEndOfLine, SelectLeft, SelectRight,
+    SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -157,7 +157,7 @@ impl Editor {
                 block_index: 4,
             },
             end: CursorPoint {
-                offset: 18,
+                offset: 65,
                 block_index: 4,
             },
         });
@@ -247,60 +247,22 @@ impl Editor {
     }
 
     fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
-        let point = match self.edit_location.clone() {
-            EditLocation::Cursor(cursor) => cursor.position,
-            EditLocation::Selection(selection) => match selection.direction() {
-                SelectionDirection::Backwards => selection.end,
-                SelectionDirection::Forwards => selection.start,
-            },
-        };
+        let starting_point = self
+            .edit_location
+            .starting_point(SelectionDirection::Backwards);
+        let position = self.beginning_of_line_position(starting_point);
 
-        let block = self.content.block(point.block_index);
-        let current_line_index = block.line_of_offset(point.offset);
-        let line_start = block.line_start(current_line_index);
-
-        self.edit_location = EditLocation::Cursor(Cursor {
-            position: CursorPoint {
-                block_index: point.block_index,
-                offset: line_start,
-            },
-            preferred_x: 0,
-        });
-
-        context.notify();
+        self.move_to(position, 0, context);
     }
 
     fn move_end_of_line(&mut self, _: &MoveEndOfLine, context: &mut ViewContext<Self>) {
-        let point = match self.edit_location.clone() {
-            EditLocation::Cursor(cursor) => cursor.position,
-            EditLocation::Selection(selection) => match selection.direction() {
-                SelectionDirection::Backwards => selection.start,
-                SelectionDirection::Forwards => selection.end,
-            },
-        };
+        let starting_point = self
+            .edit_location
+            .starting_point(SelectionDirection::Forwards);
+        let position = self.end_of_line_position(starting_point);
+        let preferred_x = self.preferred_x(position.clone());
 
-        let block = self.content.block(point.block_index);
-        let current_line_index = block.line_of_offset(point.offset);
-        let line_start = block.line_start(current_line_index);
-        let line_length = block.length_of_line(current_line_index);
-        let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
-
-        // If line is empty (just a newline), stay at line_start, otherwise go to last character
-        let new_offset = if line_length == 0 {
-            line_start
-        } else {
-            line_start + line_length - 1
-        };
-
-        self.edit_location = EditLocation::Cursor(Cursor {
-            position: CursorPoint {
-                block_index: point.block_index,
-                offset: new_offset,
-            },
-            preferred_x: new_preferred_x,
-        });
-
-        context.notify();
+        self.move_to(position, preferred_x, context);
     }
 
     fn move_beginning_of_word(&mut self, _: &MoveBeginningOfWord, context: &mut ViewContext<Self>) {
@@ -491,6 +453,50 @@ impl Editor {
         };
 
         self.select(starting_point, self.end_of_file_position(), context);
+    }
+
+    fn select_beginning_of_line(
+        &mut self,
+        _: &SelectBeginningOfLine,
+        context: &mut ViewContext<Self>,
+    ) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.beginning_of_line_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.beginning_of_line_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.beginning_of_line_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
+
+    fn select_end_of_line(&mut self, _: &SelectEndOfLine, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.end_of_line_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.end_of_line_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.end_of_line_position(selection.end),
+                    context,
+                ),
+            },
+        };
     }
 
     fn move_to(
@@ -694,6 +700,30 @@ impl Editor {
 
         return CursorPoint::new(block_index, offset);
     }
+
+    fn beginning_of_line_position(&self, point: CursorPoint) -> CursorPoint {
+        let block = self.content.block(point.block_index);
+        let current_line_index = block.line_of_offset(point.offset);
+        let line_start = block.line_start(current_line_index);
+
+        return CursorPoint::new(point.block_index, line_start);
+    }
+
+    fn end_of_line_position(&self, point: CursorPoint) -> CursorPoint {
+        let block = self.content.block(point.block_index);
+        let current_line_index = block.line_of_offset(point.offset);
+        let line_start = block.line_start(current_line_index);
+        let line_length = block.length_of_line(current_line_index);
+
+        // If line is empty (just a newline), stay at line_start, otherwise go to last character
+        let new_offset = if line_length == 0 {
+            line_start
+        } else {
+            line_start + line_length - 1
+        };
+
+        return CursorPoint::new(point.block_index, new_offset);
+    }
 }
 
 impl FocusableView for Editor {
@@ -723,6 +753,8 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::select_down))
             .on_action(context.listener(Self::select_beginning_of_file))
             .on_action(context.listener(Self::select_end_of_file))
+            .on_action(context.listener(Self::select_beginning_of_line))
+            .on_action(context.listener(Self::select_end_of_line))
             .pt_8()
             .group("editor-container")
             .child(
