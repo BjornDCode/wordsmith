@@ -12,8 +12,9 @@ use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
     MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectBeginningOfFile,
-    SelectBeginningOfLine, SelectDown, SelectEndOfFile, SelectEndOfLine, SelectLeft, SelectRight,
-    SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
+    SelectBeginningOfLine, SelectBeginningOfWord, SelectDown, SelectEndOfFile, SelectEndOfLine,
+    SelectEndOfWord, SelectLeft, SelectRight, SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT,
+    COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -266,113 +267,26 @@ impl Editor {
     }
 
     fn move_beginning_of_word(&mut self, _: &MoveBeginningOfWord, context: &mut ViewContext<Self>) {
-        let point = match self.edit_location.clone() {
+        let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.smallest(),
         };
 
-        let mut potential_position: Option<(usize, usize)> = None;
-        let mut current_block_index = point.block_index;
-        let mut current_offset = point.offset;
+        let position = self.beginning_of_word_position(starting_point);
+        let preferred_x = self.preferred_x(position.clone());
 
-        loop {
-            let block = self.content.block(current_block_index);
-
-            let position = block.previous_word_boundary(current_offset);
-
-            if let Some(offset) = position {
-                potential_position = Some((current_block_index, offset));
-                break;
-            }
-
-            if current_block_index == 0 {
-                break;
-            }
-
-            let previous_block_index = current_block_index - 1;
-            let previous_block = self.content.block(previous_block_index);
-            current_offset = previous_block.length();
-            current_block_index = previous_block_index;
-        }
-
-        let (block_index, offset) = match potential_position {
-            Some(position) => position,
-            None => (0, 0),
-        };
-
-        let block = self.content.block(block_index);
-        let line_of_offset = block.line_of_offset(offset);
-        let line_length = block.length_of_line(line_of_offset);
-        let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
-
-        self.edit_location = EditLocation::Cursor(Cursor {
-            position: CursorPoint {
-                block_index,
-                offset,
-            },
-            preferred_x,
-        });
-
-        context.notify();
+        self.move_to(position, preferred_x, context);
     }
 
     fn move_end_of_word(&mut self, _: &MoveEndOfWord, context: &mut ViewContext<Self>) {
-        let point = match self.edit_location.clone() {
+        let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.largest(),
         };
+        let position = self.end_of_word_position(starting_point);
+        let preferred_x = self.preferred_x(position.clone());
 
-        let mut potential_position: Option<(usize, usize)> = None;
-        let mut current_block_index = point.block_index;
-        let mut current_offset = point.offset;
-
-        loop {
-            let block = self.content.block(current_block_index);
-
-            let position = block.next_word_boundary(current_offset);
-
-            if let Some(offset) = position {
-                potential_position = Some((current_block_index, offset));
-                break;
-            }
-
-            if current_block_index == self.content.blocks().len() - 1 {
-                break;
-            }
-
-            current_offset = 0;
-            current_block_index = current_block_index + 1;
-        }
-
-        let (block_index, offset) = match potential_position {
-            Some(position) => position,
-            None => {
-                let block_index = self.content.blocks().len() - 1;
-                let block = self.content.block(block_index);
-                let length = if block.length() == 0 {
-                    0
-                } else {
-                    block.length() - 1
-                };
-
-                (block_index, length)
-            }
-        };
-
-        let block = self.content.block(block_index);
-        let line_of_offset = block.line_of_offset(offset);
-        let line_length = block.length_of_line(line_of_offset);
-        let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
-
-        self.edit_location = EditLocation::Cursor(Cursor {
-            position: CursorPoint {
-                block_index,
-                offset,
-            },
-            preferred_x,
-        });
-
-        context.notify();
+        self.move_to(position, preferred_x, context)
     }
 
     fn select_left(&mut self, _: &SelectLeft, context: &mut ViewContext<Self>) {
@@ -493,6 +407,46 @@ impl Editor {
                 SelectionDirection::Forwards => self.select(
                     selection.start,
                     self.end_of_line_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
+
+    fn select_beginning_of_word(
+        &mut self,
+        _: &SelectBeginningOfWord,
+        context: &mut ViewContext<Self>,
+    ) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.beginning_of_word_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.beginning_of_word_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.beginning_of_word_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
+
+    fn select_end_of_word(&mut self, _: &SelectEndOfWord, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.end_of_word_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.end_of_word_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.end_of_word_position(selection.end),
                     context,
                 ),
             },
@@ -724,6 +678,80 @@ impl Editor {
 
         return CursorPoint::new(point.block_index, new_offset);
     }
+
+    fn beginning_of_word_position(&self, point: CursorPoint) -> CursorPoint {
+        let mut potential_position: Option<(usize, usize)> = None;
+        let mut current_block_index = point.block_index;
+        let mut current_offset = point.offset;
+
+        loop {
+            let block = self.content.block(current_block_index);
+
+            let position = block.previous_word_boundary(current_offset);
+
+            if let Some(offset) = position {
+                potential_position = Some((current_block_index, offset));
+                break;
+            }
+
+            if current_block_index == 0 {
+                break;
+            }
+
+            let previous_block_index = current_block_index - 1;
+            let previous_block = self.content.block(previous_block_index);
+            current_offset = previous_block.length();
+            current_block_index = previous_block_index;
+        }
+
+        let (block_index, offset) = match potential_position {
+            Some(position) => position,
+            None => (0, 0),
+        };
+
+        return CursorPoint::new(block_index, offset);
+    }
+
+    fn end_of_word_position(&self, point: CursorPoint) -> CursorPoint {
+        let mut potential_position: Option<(usize, usize)> = None;
+        let mut current_block_index = point.block_index;
+        let mut current_offset = point.offset;
+
+        loop {
+            let block = self.content.block(current_block_index);
+
+            let position = block.next_word_boundary(current_offset);
+
+            if let Some(offset) = position {
+                potential_position = Some((current_block_index, offset));
+                break;
+            }
+
+            if current_block_index == self.content.blocks().len() - 1 {
+                break;
+            }
+
+            current_offset = 0;
+            current_block_index = current_block_index + 1;
+        }
+
+        let (block_index, offset) = match potential_position {
+            Some(position) => position,
+            None => {
+                let block_index = self.content.blocks().len() - 1;
+                let block = self.content.block(block_index);
+                let length = if block.length() == 0 {
+                    0
+                } else {
+                    block.length() - 1
+                };
+
+                (block_index, length)
+            }
+        };
+
+        return CursorPoint::new(block_index, offset);
+    }
 }
 
 impl FocusableView for Editor {
@@ -755,6 +783,8 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::select_end_of_file))
             .on_action(context.listener(Self::select_beginning_of_line))
             .on_action(context.listener(Self::select_end_of_line))
+            .on_action(context.listener(Self::select_beginning_of_word))
+            .on_action(context.listener(Self::select_end_of_word))
             .pt_8()
             .group("editor-container")
             .child(

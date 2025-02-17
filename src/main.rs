@@ -54,7 +54,9 @@ actions!(
         SelectBeginningOfFile,
         SelectEndOfFile,
         SelectBeginningOfLine,
-        SelectEndOfLine
+        SelectEndOfLine,
+        SelectBeginningOfWord,
+        SelectEndOfWord
     ]
 );
 impl_actions!(app, [SetMode]);
@@ -102,6 +104,8 @@ fn main() {
                 KeyBinding::new("cmd-shift-down", SelectEndOfFile, "editor".into()),
                 KeyBinding::new("cmd-shift-left", SelectBeginningOfLine, "editor".into()),
                 KeyBinding::new("cmd-shift-right", SelectEndOfLine, "editor".into()),
+                KeyBinding::new("alt-shift-left", SelectBeginningOfWord, "editor".into()),
+                KeyBinding::new("alt-shift-right", SelectEndOfWord, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());
