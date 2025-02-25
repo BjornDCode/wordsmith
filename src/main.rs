@@ -7,7 +7,7 @@ use std::{fs, path::PathBuf};
 
 use editor::Editor;
 use gpui::{
-    actions, div, impl_actions, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource,
+    actions, div, img, impl_actions, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource,
     Bounds, FocusHandle, FocusableView, KeyBinding, MouseButton, SharedString, View, ViewContext,
     WindowBounds, WindowOptions,
 };
@@ -83,9 +83,9 @@ fn main() {
             context.bind_keys([
                 KeyBinding::new("cmd-q", Quit, None),
                 KeyBinding::new("cmd-b", ToggleSidebar, None),
-                KeyBinding::new("cmd-1", SetMode::mode(Mode::Outline), None),
+                // KeyBinding::new("cmd-1", SetMode::mode(Mode::Outline), None),
                 KeyBinding::new("cmd-2", SetMode::mode(Mode::Write), None),
-                KeyBinding::new("cmd-3", SetMode::mode(Mode::Edit), None),
+                // KeyBinding::new("cmd-3", SetMode::mode(Mode::Edit), None),
                 KeyBinding::new("left", MoveLeft, "editor".into()),
                 KeyBinding::new("right", MoveRight, "editor".into()),
                 KeyBinding::new("up", MoveUp, "editor".into()),
@@ -262,51 +262,98 @@ fn mode_selector(mode: Mode) -> gpui::Div {
             "Outline",
             "icons/outline.svg",
             mode == Mode::Outline,
+            true,
             Mode::Outline,
         ),
-        radio_button("Write", "icons/write.svg", mode == Mode::Write, Mode::Write),
-        radio_button("Edit", "icons/edit.svg", mode == Mode::Edit, Mode::Edit),
+        radio_button(
+            "Write",
+            "icons/write.svg",
+            mode == Mode::Write,
+            false,
+            Mode::Write,
+        ),
+        radio_button(
+            "Edit",
+            "icons/edit.svg",
+            mode == Mode::Edit,
+            true,
+            Mode::Edit,
+        ),
     ])
 }
 
-fn radio_button(label: &'static str, icon: &'static str, active: bool, mode: Mode) -> gpui::Div {
-    div().flex().flex_1().flex_col().gap_1().children(vec![
-        div()
-            .flex()
-            .justify_center()
-            .py_1()
-            .border_1()
-            .when(active, |this| {
-                this.border_color(rgb(COLOR_BLUE_MEDIUM))
-                    .bg(rgb(COLOR_BLUE_LIGHT))
-                    .group("active-button")
-            })
-            .when(!active, |this| {
-                this.border_color(rgb(COLOR_GRAY_200))
-                    .bg(rgb(COLOR_GRAY_100))
-                    .hover(|this| this.bg(rgb(COLOR_GRAY_200)))
-            })
-            .group("button")
-            .rounded(px(3.))
-            .child(
-                svg()
-                    .path(icon)
-                    .size_6()
-                    .when(active, |this| this.text_color(rgb(COLOR_BLUE_DARK)))
+fn radio_button(
+    label: &'static str,
+    icon: &'static str,
+    active: bool,
+    disabled: bool,
+    mode: Mode,
+) -> gpui::Div {
+    div()
+        .flex()
+        .flex_1()
+        .flex_col()
+        .gap_1()
+        .relative()
+        .children(vec![
+            div()
+                .flex()
+                .justify_center()
+                .py_1()
+                .border_1()
+                .when(disabled, |this| {
+                    this.border_color(rgb(COLOR_GRAY_100))
+                        .bg(rgb(COLOR_GRAY_50))
+                })
+                .when(!disabled, |this| {
+                    this.when(active, |this| {
+                        this.border_color(rgb(COLOR_BLUE_MEDIUM))
+                            .bg(rgb(COLOR_BLUE_LIGHT))
+                            .group("active-button")
+                    })
                     .when(!active, |this| {
-                        this.text_color(rgb(COLOR_GRAY_500))
-                            .group_hover("button", |this| this.text_color(rgb(COLOR_GRAY_600)))
-                    }),
-            )
-            .on_mouse_up(MouseButton::Left, move |_event, context| {
-                context.dispatch_action(Box::new(SetMode::mode(mode.clone())));
-            }),
-        div()
-            .flex()
-            .justify_center()
-            .when(active, |this| this.text_color(rgb(COLOR_BLUE_DARK)))
-            .when(!active, |this| this.text_color(rgb(COLOR_GRAY_600)))
-            .text_size(px(8.))
-            .child(label),
-    ])
+                        this.border_color(rgb(COLOR_GRAY_200))
+                            .bg(rgb(COLOR_GRAY_100))
+                            .hover(|this| this.bg(rgb(COLOR_GRAY_200)))
+                    })
+                })
+                .group("button")
+                .rounded(px(3.))
+                .child(
+                    svg()
+                        .path(icon)
+                        .size_6()
+                        .when(disabled, |this| this.text_color(rgb(COLOR_GRAY_300)))
+                        .when(!disabled, |this| {
+                            this.when(active, |this| this.text_color(rgb(COLOR_BLUE_DARK)))
+                                .when(!active, |this| {
+                                    this.text_color(rgb(COLOR_GRAY_500))
+                                        .group_hover("button", |this| {
+                                            this.text_color(rgb(COLOR_GRAY_600))
+                                        })
+                                })
+                        }),
+                )
+                .when(!disabled, |this| {
+                    this.on_mouse_up(MouseButton::Left, move |_event, context| {
+                        context.dispatch_action(Box::new(SetMode::mode(mode.clone())));
+                    })
+                }),
+            div()
+                .flex()
+                .justify_center()
+                .when(disabled, |this| this.text_color(rgb(COLOR_GRAY_300)))
+                .when(!disabled, |this| {
+                    this.when(active, |this| this.text_color(rgb(COLOR_BLUE_DARK)))
+                        .when(!active, |this| this.text_color(rgb(COLOR_GRAY_600)))
+                })
+                .text_size(px(8.))
+                .child(label),
+            div()
+                .absolute()
+                .top(px(-4.))
+                .left(px(-4.))
+                .child(img("images/wip.png").w(px(21.)).h(px(12.)))
+                .when(!disabled, |this| this.invisible()),
+        ])
 }
