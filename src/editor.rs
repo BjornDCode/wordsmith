@@ -11,10 +11,10 @@ use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
-    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectBeginningOfFile,
-    SelectBeginningOfLine, SelectBeginningOfWord, SelectDown, SelectEndOfFile, SelectEndOfLine,
-    SelectEndOfWord, SelectLeft, SelectRight, SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT,
-    COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
+    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
+    SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord, SelectDown,
+    SelectEndOfFile, SelectEndOfLine, SelectEndOfWord, SelectLeft, SelectRight, SelectUp,
+    COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -453,6 +453,14 @@ impl Editor {
         };
     }
 
+    fn remove_selection(&mut self, _: &RemoveSelection, context: &mut ViewContext<Self>) {
+        if let EditLocation::Selection(selection) = self.edit_location.clone() {
+            let preferred_x = self.preferred_x(selection.start.clone());
+
+            self.move_to(selection.start, preferred_x, context);
+        }
+    }
+
     fn move_to(
         &mut self,
         position: CursorPoint,
@@ -785,6 +793,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::select_end_of_line))
             .on_action(context.listener(Self::select_beginning_of_word))
             .on_action(context.listener(Self::select_end_of_word))
+            .on_action(context.listener(Self::remove_selection))
             .pt_8()
             .group("editor-container")
             .child(
