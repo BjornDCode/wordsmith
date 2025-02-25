@@ -46,7 +46,17 @@ actions!(
         MoveBeginningOfLine,
         MoveEndOfLine,
         MoveBeginningOfWord,
-        MoveEndOfWord
+        MoveEndOfWord,
+        SelectLeft,
+        SelectRight,
+        SelectUp,
+        SelectDown,
+        SelectBeginningOfFile,
+        SelectEndOfFile,
+        SelectBeginningOfLine,
+        SelectEndOfLine,
+        SelectBeginningOfWord,
+        SelectEndOfWord
     ]
 );
 impl_actions!(app, [SetMode]);
@@ -86,6 +96,16 @@ fn main() {
                 KeyBinding::new("cmd-right", MoveEndOfLine, "editor".into()),
                 KeyBinding::new("alt-left", MoveBeginningOfWord, "editor".into()),
                 KeyBinding::new("alt-right", MoveEndOfWord, "editor".into()),
+                KeyBinding::new("shift-left", SelectLeft, "editor".into()),
+                KeyBinding::new("shift-right", SelectRight, "editor".into()),
+                KeyBinding::new("shift-up", SelectUp, "editor".into()),
+                KeyBinding::new("shift-down", SelectDown, "editor".into()),
+                KeyBinding::new("cmd-shift-up", SelectBeginningOfFile, "editor".into()),
+                KeyBinding::new("cmd-shift-down", SelectEndOfFile, "editor".into()),
+                KeyBinding::new("cmd-shift-left", SelectBeginningOfLine, "editor".into()),
+                KeyBinding::new("cmd-shift-right", SelectEndOfLine, "editor".into()),
+                KeyBinding::new("alt-shift-left", SelectBeginningOfWord, "editor".into()),
+                KeyBinding::new("alt-shift-right", SelectEndOfWord, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());

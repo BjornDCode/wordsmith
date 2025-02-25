@@ -1,10 +1,14 @@
-use std::{ops::Index, sync::Arc};
+use std::{
+    cmp::{max, min},
+    ops::{Index, Range},
+    sync::Arc,
+};
 
 use gpui::{
     rgb, Font, FontWeight, Hsla, Pixels, SharedString, TextRun, WindowTextSystem, WrappedLine,
 };
 
-use crate::{text::WrappedText, COLOR_GRAY_700, COLOR_GRAY_800};
+use crate::{editor::CursorPoint, text::WrappedText, COLOR_GRAY_700, COLOR_GRAY_800};
 
 #[derive(Debug)]
 pub struct Point {
@@ -86,10 +90,10 @@ impl Content {
         return blocks;
     }
 
-    pub fn cursor_position(&self, block_index: usize, offset: usize) -> Point {
-        let block = self.block(block_index);
+    pub fn cursor_position(&self, point: CursorPoint) -> Point {
+        let block = self.block(point.block_index);
 
-        return block.cursor_position(offset);
+        return block.cursor_position(point.offset);
     }
 
     pub fn block_length(&self, block_index: usize) -> usize {
@@ -100,6 +104,19 @@ impl Content {
 
     pub fn block(&self, block_index: usize) -> Block {
         self.blocks().index(block_index).clone()
+    }
+
+    pub fn block_start(&self, index: usize) -> usize {
+        let blocks = self.blocks();
+        let previous_blocks = &blocks[..index];
+
+        let mut line_count = 0;
+
+        for block in previous_blocks {
+            line_count += block.line_length();
+        }
+
+        return line_count;
     }
 }
 
@@ -132,6 +149,12 @@ impl Block {
         let lines = lines.into_iter().enumerate();
         let mut line_index: usize = 0;
         let mut processed_offset = 0;
+
+        let block_length = self.length();
+
+        if offset > 0 && offset == block_length {
+            return lines.len() - 1;
+        }
 
         for (index, line) in lines {
             processed_offset += line.len();
@@ -174,6 +197,16 @@ impl Block {
         let line_start = self.line_start(line_index);
 
         return offset - line_start;
+    }
+
+    pub fn line_range(&self, start_offset: usize, end_offset: usize) -> Range<usize> {
+        let start = self.line_of_offset(start_offset);
+        let end = self.line_of_offset(end_offset);
+
+        let smallest = min(start, end);
+        let largest = max(start, end) + 1;
+
+        return smallest..largest;
     }
 }
 

@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::ops::Index;
 
 use gpui::{
@@ -10,8 +11,10 @@ use crate::content::{Block, Content, Size};
 use crate::content::{Render, RenderedBlock};
 use crate::{
     MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
-    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, COLOR_BLUE_DARK, COLOR_GRAY_800,
-    COLOR_PINK,
+    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, SelectBeginningOfFile,
+    SelectBeginningOfLine, SelectBeginningOfWord, SelectDown, SelectEndOfFile, SelectEndOfLine,
+    SelectEndOfWord, SelectLeft, SelectRight, SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT,
+    COLOR_BLUE_MEDIUM, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -21,206 +24,650 @@ pub const CONTAINER_WIDTH: Pixels = px(512.); // CHARACTER_WIDTH * CHARCTER_COUN
 pub struct Editor {
     focus_handle: FocusHandle,
     content: Content,
-    cursor_position: CursorPosition,
+    edit_location: EditLocation,
 }
 
-struct CursorPosition {
-    block_index: usize,
-    offset: usize,
+#[derive(Debug, Clone)]
+enum EditLocation {
+    Cursor(Cursor),
+    Selection(Selection),
+}
+
+impl EditLocation {
+    pub fn starting_point(&self, next_direction: SelectionDirection) -> CursorPoint {
+        match self.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => {
+                let reversed = next_direction == SelectionDirection::Backwards;
+
+                match (selection.direction(), reversed) {
+                    (SelectionDirection::Backwards, true) => selection.end,
+                    (SelectionDirection::Backwards, false) => selection.start,
+                    (SelectionDirection::Forwards, true) => selection.start,
+                    (SelectionDirection::Forwards, false) => selection.end,
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CursorPoint {
+    pub block_index: usize,
+    pub offset: usize,
+}
+
+impl CursorPoint {
+    pub fn new(block_index: usize, offset: usize) -> CursorPoint {
+        CursorPoint {
+            block_index,
+            offset,
+        }
+    }
+}
+
+impl PartialEq for CursorPoint {
+    fn eq(&self, other: &Self) -> bool {
+        self.block_index == other.block_index && self.offset == other.offset
+    }
+}
+
+impl Eq for CursorPoint {}
+
+impl Ord for CursorPoint {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for CursorPoint {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.block_index == other.block_index {
+            if self.offset < other.offset {
+                return Some(Ordering::Less);
+            }
+
+            if self.offset > other.offset {
+                return Some(Ordering::Greater);
+            }
+
+            return Some(Ordering::Equal);
+        }
+
+        if self.block_index < other.block_index {
+            return Some(Ordering::Less);
+        }
+
+        if self.block_index > other.block_index {
+            return Some(Ordering::Greater);
+        }
+
+        return Some(Ordering::Equal);
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Cursor {
+    position: CursorPoint,
     preferred_x: usize,
+}
+
+#[derive(Debug, Clone)]
+struct Selection {
+    start: CursorPoint,
+    end: CursorPoint,
+}
+
+impl Selection {
+    pub fn direction(&self) -> SelectionDirection {
+        if self.end < self.start {
+            SelectionDirection::Backwards
+        } else {
+            SelectionDirection::Forwards
+        }
+    }
+
+    pub fn smallest(&self) -> CursorPoint {
+        if self.start < self.end {
+            return self.start.clone();
+        } else {
+            return self.end.clone();
+        }
+    }
+
+    pub fn largest(&self) -> CursorPoint {
+        if self.start > self.end {
+            return self.start.clone();
+        } else {
+            return self.end.clone();
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SelectionDirection {
+    Backwards,
+    Forwards,
 }
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        let cursor_position = CursorPosition {
-            offset: 12,
-            block_index: 2,
-            preferred_x: 12,
-        };
+        let edit_location = EditLocation::Selection(Selection {
+            start: CursorPoint {
+                offset: 6,
+                block_index: 4,
+            },
+            end: CursorPoint {
+                offset: 65,
+                block_index: 4,
+            },
+        });
 
         return Editor {
             focus_handle,
             content: Content::new("## This is a headline\n\nDolor elend vitae porta iaculis etiam commodo. Mus erat lacus penatibus congue ultricies. Elementum tristique sociosqu curae etiam consequat et arcu placerat est.\n\nHabitant primis praesent malesuada lorem parturient lobortis metus. Pulvinar ultrices ligula id ac quisque curae, leo est.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
-            cursor_position
+            edit_location
         };
     }
 
     fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
-        if self.cursor_position.offset == 0 {
-            if self.cursor_position.block_index > 0 {
-                let new_y = self.cursor_position.block_index - 1;
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                let position = self.left_position(cursor.position);
+                let preferred_x = self.preferred_x(position.clone());
 
-                self.cursor_position.block_index = new_y;
-                self.cursor_position.offset = self.content.block_length(new_y) - 1;
+                self.move_to(position, preferred_x, context);
             }
-        } else {
-            let new_offset = self.cursor_position.offset - 1;
-            let block = self.content.block(self.cursor_position.block_index);
-            let line_in_block = block.line_of_offset(new_offset);
-            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+            EditLocation::Selection(selection) => {
+                let position = selection.smallest();
+                let preferred_x = self.preferred_x(position.clone());
 
-            self.cursor_position.offset = new_offset;
-            self.cursor_position.preferred_x = new_preferred_x;
+                self.move_to(position, preferred_x, context);
+            }
         }
-
-        context.notify();
     }
 
     fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
-        let block_length = self.content.block_length(self.cursor_position.block_index) - 1;
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                let position = self.right_position(cursor.position);
+                let preferred_x = self.preferred_x(position.clone());
 
-        if self.cursor_position.offset == block_length {
-            let new_y = self.cursor_position.block_index + 1;
-
-            if new_y < self.content.blocks().len() {
-                self.cursor_position.block_index += 1;
-                self.cursor_position.offset = 0;
+                self.move_to(position, preferred_x, context);
             }
-        } else {
-            let new_offset = self.cursor_position.offset + 1;
-            let block = self.content.block(self.cursor_position.block_index);
-            let line_in_block = block.line_of_offset(new_offset);
-            let new_preferred_x = block.offset_in_line(line_in_block, new_offset);
+            EditLocation::Selection(selection) => {
+                let position = selection.largest();
+                let preferred_x = self.preferred_x(position.clone());
 
-            self.cursor_position.offset = new_offset;
-            self.cursor_position.preferred_x = new_preferred_x;
+                self.move_to(position, preferred_x, context);
+            }
         }
-
-        context.notify();
     }
 
     fn move_up(&mut self, _: &MoveUp, context: &mut ViewContext<Self>) {
-        let current_block = self.content.block(self.cursor_position.block_index);
-        let line_index_in_block = current_block.line_of_offset(self.cursor_position.offset);
+        let starting_point = self
+            .edit_location
+            .starting_point(SelectionDirection::Backwards);
+        let position = self.up_position(starting_point.clone());
+        let preferred_x = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.preferred_x,
+            EditLocation::Selection(selection) => self.preferred_x(selection.start),
+        };
 
-        if line_index_in_block == 0 {
-            if self.cursor_position.block_index > 0 {
-                let new_block_index = self.cursor_position.block_index - 1;
-
-                let previous_block = self.content.block(new_block_index);
-                let previous_block_line_length = previous_block.line_length();
-                let start_of_last_line_in_previous_block =
-                    previous_block.line_start(previous_block_line_length - 1);
-
-                let last_line_length =
-                    previous_block.length_of_line(previous_block_line_length - 1);
-
-                let preferred_offset =
-                    start_of_last_line_in_previous_block + self.cursor_position.preferred_x;
-
-                let offset = std::cmp::min(
-                    start_of_last_line_in_previous_block + last_line_length,
-                    preferred_offset,
-                );
-
-                self.cursor_position.block_index = new_block_index;
-                self.cursor_position.offset = offset;
-            } else {
-                self.cursor_position.offset = 0;
-            }
-        } else {
-            let previous_line_length = current_block.length_of_line(line_index_in_block - 1);
-            let previous_line_start = current_block.line_start(line_index_in_block - 1);
-
-            let preferred_offset = previous_line_start + self.cursor_position.preferred_x;
-
-            let offset = std::cmp::min(
-                previous_line_start + previous_line_length - 1,
-                preferred_offset,
-            );
-
-            self.cursor_position.offset = offset;
-        }
-
-        context.notify()
+        self.move_to(position, preferred_x, context);
     }
 
     fn move_down(&mut self, _: &MoveDown, context: &mut ViewContext<Self>) {
-        let block = self.content.block(self.cursor_position.block_index);
-        let block_line_length = block.line_length();
-        let line_index_in_block = block.line_of_offset(self.cursor_position.offset);
+        let starting_point = self
+            .edit_location
+            .starting_point(SelectionDirection::Forwards);
 
-        if line_index_in_block == block_line_length - 1 {
-            if self.cursor_position.block_index < self.content.blocks().len() - 1 {
-                let next_block_index = self.cursor_position.block_index + 1;
-                let next_block = self.content.block(next_block_index);
+        let position = self.down_position(starting_point.clone());
+        let preferred_x = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.preferred_x,
+            EditLocation::Selection(selection) => self.preferred_x(selection.start),
+        };
 
-                let first_line_length = next_block.length_of_line(0);
-                let first_line_length = if first_line_length == 0 {
-                    0
-                } else {
-                    if next_block.is_soft_wrapped_line(0) {
-                        first_line_length - 1
-                    } else {
-                        first_line_length
-                    }
-                };
+        self.move_to(position, preferred_x, context);
+    }
 
-                let preferred_offset = self.cursor_position.preferred_x;
+    fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
+        let position = self.beginning_of_file_position();
 
-                let offset = std::cmp::min(first_line_length, preferred_offset);
+        self.move_to(position, 0, context);
+    }
 
-                self.cursor_position.block_index = next_block_index;
-                self.cursor_position.offset = offset;
-            } else {
-                self.cursor_position.offset = block.length() - 1;
+    fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
+        let position = self.end_of_file_position();
+
+        let block = self.content.block(position.block_index);
+        let last_line_index = block.line_length() - 1;
+        let preferred_x = block.length_of_line(last_line_index);
+
+        self.move_to(position, preferred_x, context);
+    }
+
+    fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
+        let starting_point = self
+            .edit_location
+            .starting_point(SelectionDirection::Backwards);
+        let position = self.beginning_of_line_position(starting_point);
+
+        self.move_to(position, 0, context);
+    }
+
+    fn move_end_of_line(&mut self, _: &MoveEndOfLine, context: &mut ViewContext<Self>) {
+        let starting_point = self
+            .edit_location
+            .starting_point(SelectionDirection::Forwards);
+        let position = self.end_of_line_position(starting_point);
+        let preferred_x = self.preferred_x(position.clone());
+
+        self.move_to(position, preferred_x, context);
+    }
+
+    fn move_beginning_of_word(&mut self, _: &MoveBeginningOfWord, context: &mut ViewContext<Self>) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.smallest(),
+        };
+
+        let position = self.beginning_of_word_position(starting_point);
+        let preferred_x = self.preferred_x(position.clone());
+
+        self.move_to(position, preferred_x, context);
+    }
+
+    fn move_end_of_word(&mut self, _: &MoveEndOfWord, context: &mut ViewContext<Self>) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.largest(),
+        };
+        let position = self.end_of_word_position(starting_point);
+        let preferred_x = self.preferred_x(position.clone());
+
+        self.move_to(position, preferred_x, context)
+    }
+
+    fn select_left(&mut self, _: &SelectLeft, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.left_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => {
+                self.select(selection.start, self.left_position(selection.end), context)
             }
+        }
+    }
+
+    fn select_right(&mut self, _: &SelectRight, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.right_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => {
+                self.select(selection.start, self.right_position(selection.end), context)
+            }
+        }
+    }
+
+    fn select_up(&mut self, _: &SelectUp, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.up_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.up_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => {
+                    self.select(selection.start, self.up_position(selection.end), context)
+                }
+            },
+        };
+    }
+
+    fn select_down(&mut self, _: &SelectDown, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.down_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.down_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => {
+                    self.select(selection.start, self.down_position(selection.end), context)
+                }
+            },
+        };
+    }
+
+    fn select_beginning_of_file(
+        &mut self,
+        _: &SelectBeginningOfFile,
+        context: &mut ViewContext<Self>,
+    ) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.start,
+        };
+
+        self.select(starting_point, self.beginning_of_file_position(), context);
+    }
+
+    fn select_end_of_file(&mut self, _: &SelectEndOfFile, context: &mut ViewContext<Self>) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.start,
+        };
+
+        self.select(starting_point, self.end_of_file_position(), context);
+    }
+
+    fn select_beginning_of_line(
+        &mut self,
+        _: &SelectBeginningOfLine,
+        context: &mut ViewContext<Self>,
+    ) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.beginning_of_line_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.beginning_of_line_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.beginning_of_line_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
+
+    fn select_end_of_line(&mut self, _: &SelectEndOfLine, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.end_of_line_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.end_of_line_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.end_of_line_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
+
+    fn select_beginning_of_word(
+        &mut self,
+        _: &SelectBeginningOfWord,
+        context: &mut ViewContext<Self>,
+    ) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.beginning_of_word_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.beginning_of_word_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.beginning_of_word_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
+
+    fn select_end_of_word(&mut self, _: &SelectEndOfWord, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.end_of_word_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.end_of_word_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.end_of_word_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
+
+    fn move_to(
+        &mut self,
+        position: CursorPoint,
+        preferred_x: usize,
+        context: &mut ViewContext<Self>,
+    ) {
+        self.edit_location = EditLocation::Cursor(Cursor {
+            position,
+            preferred_x,
+        });
+
+        context.notify();
+    }
+
+    fn select(&mut self, start: CursorPoint, end: CursorPoint, context: &mut ViewContext<Self>) {
+        if start == end {
+            let preferred_x = self.preferred_x(start.clone());
+
+            self.move_to(start, preferred_x, context);
         } else {
-            let next_line_start = block.line_start(line_index_in_block + 1);
-            let next_line_length = block.length_of_line(line_index_in_block + 1);
-            let is_soft_wrapped_line = block.is_soft_wrapped_line(line_index_in_block + 1);
-            let modifier_value = match is_soft_wrapped_line {
-                true => 1,
-                false => 0,
-            };
-
-            let preferred_offset = next_line_start + self.cursor_position.preferred_x;
-
-            let offset = std::cmp::min(
-                next_line_start + next_line_length - modifier_value,
-                preferred_offset,
-            );
-
-            self.cursor_position.offset = offset;
+            self.edit_location = EditLocation::Selection(Selection { start, end });
         }
 
         context.notify();
     }
 
-    fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
-        self.cursor_position.block_index = 0;
-        self.cursor_position.offset = 0;
+    fn select_to(&mut self, end: CursorPoint, context: &mut ViewContext<Self>) {
+        let start = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.start,
+        };
 
-        context.notify();
+        self.select(start, end, context);
     }
 
-    fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
-        let last_block_index = self.content.blocks().len() - 1;
-        let block = self.content.block(last_block_index);
+    fn preferred_x(&self, position: CursorPoint) -> usize {
+        let block = self.content.block(position.block_index);
+        let line_index = block.line_of_offset(position.offset);
 
-        self.cursor_position.block_index = last_block_index;
-        self.cursor_position.offset = block.length() - 1;
-
-        context.notify();
+        return block.offset_in_line(line_index, position.offset);
     }
 
-    fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
-        let block = self.content.block(self.cursor_position.block_index);
-        let current_line_index = block.line_of_offset(self.cursor_position.offset);
+    fn left_position(&self, point: CursorPoint) -> CursorPoint {
+        if point.block_index == 0 && point.offset == 0 {
+            return point;
+        }
+
+        if point.offset == 0 {
+            let new_block_index = point.block_index - 1;
+            let block_length = self.content.block_length(new_block_index);
+            let new_offset = if block_length == 0 {
+                0
+            } else {
+                self.content.block_length(new_block_index) - 1
+            };
+
+            return CursorPoint::new(new_block_index, new_offset);
+        }
+
+        return CursorPoint::new(point.block_index, point.offset - 1);
+    }
+
+    fn right_position(&self, point: CursorPoint) -> CursorPoint {
+        let block_length = self.content.block_length(point.block_index);
+        let block_length = if block_length == 0 {
+            0
+        } else {
+            self.content.block_length(point.block_index) - 1
+        };
+
+        if point.block_index == self.content.blocks().len() - 1 && point.offset == block_length {
+            return point;
+        }
+
+        if point.offset == block_length {
+            return CursorPoint::new(point.block_index + 1, 0);
+        }
+
+        return CursorPoint::new(point.block_index, point.offset + 1);
+    }
+
+    fn up_position(&self, point: CursorPoint) -> CursorPoint {
+        let block = self.content.block(point.block_index);
+        let line_index = block.line_of_offset(point.offset);
+
+        if point.block_index == 0 && line_index == 0 {
+            return CursorPoint::new(0, 0);
+        }
+
+        if line_index == 0 {
+            let previous_block = self.content.block(point.block_index - 1);
+            let previous_block_line_length = previous_block.line_length();
+            let previous_line_start = previous_block.line_start(previous_block_line_length - 1);
+            let previous_line_length =
+                previous_block.length_of_line(previous_block_line_length - 1);
+            let previous_line_end = if previous_line_start == 0 && previous_line_length == 0 {
+                0
+            } else {
+                previous_line_start + previous_line_length - 1
+            };
+
+            let preferred_x = match self.edit_location.clone() {
+                EditLocation::Cursor(cursor) => cursor.preferred_x,
+                EditLocation::Selection(selection) => self.preferred_x(selection.start),
+            };
+            let preferred_offset = previous_line_start + preferred_x;
+
+            let offset = std::cmp::min(previous_line_end, preferred_offset);
+
+            return CursorPoint::new(point.block_index - 1, offset);
+        }
+
+        let previous_line_start = block.line_start(line_index - 1);
+        let previous_line_length = block.length_of_line(line_index - 1);
+
+        let preferred_x = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.preferred_x,
+            EditLocation::Selection(selection) => self.preferred_x(selection.start),
+        };
+        let preferred_offset = previous_line_start + preferred_x;
+
+        let offset = std::cmp::min(
+            previous_line_start + previous_line_length - 1,
+            preferred_offset,
+        );
+
+        return CursorPoint::new(point.block_index, offset);
+    }
+
+    fn down_position(&self, point: CursorPoint) -> CursorPoint {
+        let block = self.content.block(point.block_index);
+        let block_line_length = block.line_length();
+        let line_index = block.line_of_offset(point.offset);
+
+        // If last line in last block
+        if point.block_index == self.content.blocks().len() - 1
+            && line_index == block_line_length - 1
+        {
+            return CursorPoint::new(point.block_index, block.length());
+        }
+
+        // If last line in any block
+        if line_index == block_line_length - 1 {
+            let next_block_index = point.block_index + 1;
+            let next_block = self.content.block(next_block_index);
+
+            let first_line_length = next_block.length_of_line(0);
+            let first_line_length = if first_line_length == 0 {
+                0
+            } else {
+                if next_block.is_soft_wrapped_line(0) {
+                    first_line_length - 1
+                } else {
+                    first_line_length
+                }
+            };
+
+            let preferred_x = match self.edit_location.clone() {
+                EditLocation::Cursor(cursor) => cursor.preferred_x,
+                EditLocation::Selection(selection) => self.preferred_x(selection.start),
+            };
+
+            let offset = std::cmp::min(first_line_length, preferred_x);
+
+            return CursorPoint::new(next_block_index, offset);
+        }
+
+        let next_line_start = block.line_start(line_index + 1);
+        let next_line_length = block.length_of_line(line_index + 1);
+        let is_soft_wrapped_line = block.is_soft_wrapped_line(line_index + 1);
+        let modifier_value = match is_soft_wrapped_line {
+            true => 1,
+            false => 0,
+        };
+
+        let preferred_x = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.preferred_x,
+            EditLocation::Selection(selection) => self.preferred_x(selection.start),
+        };
+        let preferred_offset = next_line_start + preferred_x;
+
+        let offset = std::cmp::min(
+            next_line_start + next_line_length - modifier_value,
+            preferred_offset,
+        );
+
+        return CursorPoint::new(point.block_index, offset);
+    }
+
+    fn beginning_of_file_position(&self) -> CursorPoint {
+        return CursorPoint::new(0, 0);
+    }
+
+    fn end_of_file_position(&self) -> CursorPoint {
+        let block_index = self.content.blocks().len() - 1;
+
+        let block = self.content.block(block_index);
+        let offset = block.length() - 1;
+
+        return CursorPoint::new(block_index, offset);
+    }
+
+    fn beginning_of_line_position(&self, point: CursorPoint) -> CursorPoint {
+        let block = self.content.block(point.block_index);
+        let current_line_index = block.line_of_offset(point.offset);
         let line_start = block.line_start(current_line_index);
 
-        self.cursor_position.offset = line_start;
-        self.cursor_position.preferred_x = 0;
-
-        context.notify();
+        return CursorPoint::new(point.block_index, line_start);
     }
 
-    fn move_end_of_line(&mut self, _: &MoveEndOfLine, context: &mut ViewContext<Self>) {
-        let block = self.content.block(self.cursor_position.block_index);
-        let current_line_index = block.line_of_offset(self.cursor_position.offset);
+    fn end_of_line_position(&self, point: CursorPoint) -> CursorPoint {
+        let block = self.content.block(point.block_index);
+        let current_line_index = block.line_of_offset(point.offset);
         let line_start = block.line_start(current_line_index);
         let line_length = block.length_of_line(current_line_index);
-        let new_preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
 
         // If line is empty (just a newline), stay at line_start, otherwise go to last character
         let new_offset = if line_length == 0 {
@@ -229,16 +676,13 @@ impl Editor {
             line_start + line_length - 1
         };
 
-        self.cursor_position.offset = new_offset;
-        self.cursor_position.preferred_x = new_preferred_x;
-
-        context.notify();
+        return CursorPoint::new(point.block_index, new_offset);
     }
 
-    fn move_beginning_of_word(&mut self, _: &MoveBeginningOfWord, context: &mut ViewContext<Self>) {
+    fn beginning_of_word_position(&self, point: CursorPoint) -> CursorPoint {
         let mut potential_position: Option<(usize, usize)> = None;
-        let mut current_block_index = self.cursor_position.block_index;
-        let mut current_offset = self.cursor_position.offset;
+        let mut current_block_index = point.block_index;
+        let mut current_offset = point.offset;
 
         loop {
             let block = self.content.block(current_block_index);
@@ -265,23 +709,13 @@ impl Editor {
             None => (0, 0),
         };
 
-        self.cursor_position.block_index = block_index;
-        self.cursor_position.offset = offset;
-
-        let block = self.content.block(block_index);
-        let line_of_offset = block.line_of_offset(offset);
-        let line_length = block.length_of_line(line_of_offset);
-        let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
-
-        self.cursor_position.preferred_x = preferred_x;
-
-        context.notify();
+        return CursorPoint::new(block_index, offset);
     }
 
-    fn move_end_of_word(&mut self, _: &MoveEndOfWord, context: &mut ViewContext<Self>) {
+    fn end_of_word_position(&self, point: CursorPoint) -> CursorPoint {
         let mut potential_position: Option<(usize, usize)> = None;
-        let mut current_block_index = self.cursor_position.block_index;
-        let mut current_offset = self.cursor_position.offset;
+        let mut current_block_index = point.block_index;
+        let mut current_offset = point.offset;
 
         loop {
             let block = self.content.block(current_block_index);
@@ -316,17 +750,7 @@ impl Editor {
             }
         };
 
-        self.cursor_position.block_index = block_index;
-        self.cursor_position.offset = offset;
-
-        let block = self.content.block(block_index);
-        let line_of_offset = block.line_of_offset(offset);
-        let line_length = block.length_of_line(line_of_offset);
-        let preferred_x = if line_length == 0 { 0 } else { line_length - 1 };
-
-        self.cursor_position.preferred_x = preferred_x;
-
-        context.notify();
+        return CursorPoint::new(block_index, offset);
     }
 }
 
@@ -351,6 +775,16 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_end_of_line))
             .on_action(context.listener(Self::move_beginning_of_word))
             .on_action(context.listener(Self::move_end_of_word))
+            .on_action(context.listener(Self::select_left))
+            .on_action(context.listener(Self::select_right))
+            .on_action(context.listener(Self::select_up))
+            .on_action(context.listener(Self::select_down))
+            .on_action(context.listener(Self::select_beginning_of_file))
+            .on_action(context.listener(Self::select_end_of_file))
+            .on_action(context.listener(Self::select_beginning_of_line))
+            .on_action(context.listener(Self::select_end_of_line))
+            .on_action(context.listener(Self::select_beginning_of_word))
+            .on_action(context.listener(Self::select_end_of_word))
             .pt_8()
             .group("editor-container")
             .child(
@@ -381,7 +815,7 @@ impl IntoElement for EditorElement {
 
 struct PrepaintState {
     blocks: Vec<RenderedBlock>,
-    cursor: Option<PaintQuad>,
+    edit_location_rectangles: Option<Vec<PaintQuad>>,
     headline_markers: Vec<RenderedHeadlineMarker>,
 }
 
@@ -455,25 +889,89 @@ impl Element for EditorElement {
             .map(|mut block| block.render(context.text_system(), style.font(), font_size))
             .collect();
 
-        let cursor_position = content.cursor_position(
-            input.cursor_position.block_index,
-            input.cursor_position.offset,
-        );
+        let edit_location_rectangles = match input.edit_location.clone() {
+            EditLocation::Cursor(caret) => {
+                let position = content.cursor_position(caret.position);
 
-        let cursor = fill(
-            Bounds::new(
-                point(
-                    bounds.left() + px(cursor_position.x as f32) * CHARACTER_WIDTH - px(1.),
-                    bounds.top() + context.line_height() * px(cursor_position.y as f32) + px(4.),
-                ),
-                size(px(2.), px(16.)),
-            ),
-            rgb(COLOR_BLUE_DARK),
-        );
+                let rectangles = vec![fill(
+                    Bounds::new(
+                        point(
+                            bounds.left() + px(position.x as f32) * CHARACTER_WIDTH - px(1.),
+                            bounds.top() + context.line_height() * px(position.y as f32) + px(2.),
+                        ),
+                        size(px(2.), px(20.)),
+                    ),
+                    rgb(COLOR_BLUE_DARK),
+                )];
+
+                rectangles
+            }
+            EditLocation::Selection(selection) => {
+                let mut rectangles = vec![];
+                let smallest_point = std::cmp::min(selection.start.clone(), selection.end.clone());
+                let largest_point = std::cmp::max(selection.start.clone(), selection.end.clone());
+                let block_range = smallest_point.block_index..largest_point.block_index + 1;
+
+                for block_index in block_range.clone() {
+                    let block_start_line_index = content.block_start(block_index);
+                    let block = content.block(block_index);
+                    let min = if block_index == block_range.start {
+                        smallest_point.offset
+                    } else {
+                        0
+                    };
+                    let max = if block_index == block_range.end - 1 {
+                        largest_point.offset
+                    } else {
+                        block.length()
+                    };
+                    let line_range = block.line_range(min, max);
+
+                    for line_index in line_range.clone() {
+                        let start = if line_index == line_range.start {
+                            block.offset_in_line(line_index, min)
+                        } else {
+                            0
+                        };
+                        let end = if block_index == block_range.end - 1
+                            && line_index == line_range.end - 1
+                        {
+                            if block_index == block_range.end - 1 {
+                                block.offset_in_line(line_index, max)
+                            } else {
+                                let offset = block.offset_in_line(line_index, min);
+
+                                CHARACTER_COUNT_PER_LINE - offset
+                            }
+                        } else {
+                            CHARACTER_COUNT_PER_LINE - start
+                        };
+
+                        let left = bounds.left() + px(start as f32) * CHARACTER_WIDTH - px(1.);
+                        let top = bounds.top()
+                            + px(block_start_line_index as f32) * context.line_height()
+                            + px(line_index as f32) * context.line_height();
+                        let width = if line_range.start == line_range.end - 1 {
+                            (px(end as f32) - px(start as f32)) * CHARACTER_WIDTH + px(2.)
+                        } else {
+                            px(end as f32) * CHARACTER_WIDTH + px(2.)
+                        };
+
+                        let bounds =
+                            Bounds::new(point(left, top), size(width, context.line_height()));
+                        let rectangle = fill(bounds, rgb(COLOR_BLUE_MEDIUM));
+
+                        rectangles.push(rectangle);
+                    }
+                }
+
+                rectangles
+            }
+        };
 
         PrepaintState {
             blocks: rendered_blocks,
-            cursor: Some(cursor),
+            edit_location_rectangles: Some(edit_location_rectangles),
             headline_markers,
         }
     }
@@ -489,6 +987,14 @@ impl Element for EditorElement {
         let focus_handle = self.input.read(context).focus_handle.clone();
         let blocks = prepaint.blocks.clone().into_iter();
         let headline_markers = prepaint.headline_markers.clone();
+
+        if focus_handle.is_focused(context) {
+            if let Some(edit_location_rectanlges) = prepaint.edit_location_rectangles.take() {
+                for rectangle in edit_location_rectanlges {
+                    context.paint_quad(rectangle);
+                }
+            }
+        }
 
         for block in blocks {
             // The reason we are not just looping over lines directly is that there seem to be a rogue newline at the end
@@ -514,12 +1020,6 @@ impl Element for EditorElement {
 
         for marker in headline_markers {
             marker.render(context);
-        }
-
-        if focus_handle.is_focused(context) {
-            if let Some(cursor) = prepaint.cursor.take() {
-                context.paint_quad(cursor);
-            }
         }
     }
 }
