@@ -885,7 +885,7 @@ impl Element for EditorElement {
         // let lines = context.text_system().shape_line(content.to_string(), font_size, runs)
         let mut lines: Vec<RenderedLine> = vec![];
 
-        let text = content.to_string();
+        let text = content.text();
         let raw_lines: Vec<_> = text.lines().map(|s| s.to_string()).collect();
         for line in &raw_lines {
             let is_headline = line.starts_with('#');

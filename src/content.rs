@@ -24,16 +24,19 @@ impl Point {
 
 #[derive(Debug, Clone)]
 pub struct Content {
-    text: SharedString,
+    original: SharedString,
+    wrapped: WrappedText,
 }
 
 impl Content {
-    pub fn new(text: SharedString) -> Content {
-        Content { text }
+    pub fn new(original: SharedString) -> Content {
+        let wrapped = WrappedText::new(original.clone().into());
+
+        Content { original, wrapped }
     }
 
-    pub fn to_string(&self) -> String {
-        return self.text.clone().into();
+    pub fn text(&self) -> String {
+        return self.wrapped.to_string();
     }
 
     // pub fn lines() {}
