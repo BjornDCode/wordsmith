@@ -191,7 +191,7 @@ impl Editor {
 
         return Editor {
             focus_handle,
-            content: Content::new("## This is a headline\n\nDolor elend vitae porta iaculis etiam commodo. Mus erat lacus penatibus congue ultricies. Elementum tristique sociosqu curae etiam consequat et arcu placerat est.\n\nHabitant primis praesent malesuada lorem parturient lobortis metus. Pulvinar ultrices ligula id ac quisque curae, leo est.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
+            content: Content::new("## This is a very very very very very very very very headline\n\nDolor elend vitae porta iaculis etiam commodo. Mus erat lacus penatibus congue ultricies. Elementum tristique sociosqu curae etiam consequat et arcu placerat est.\n\nHabitant primis praesent malesuada lorem parturient lobortis metus. Pulvinar ultrices ligula id ac quisque curae, leo est.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
             edit_location
         };
     }
@@ -905,15 +905,23 @@ impl Element for EditorElement {
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
 
-        // let lines = context.text_system().shape_line(content.to_string(), font_size, runs)
         let mut lines: Vec<RenderedLine> = vec![];
+        let mut is_inside_headline = false;
 
         let text = content.text();
         let raw_lines: Vec<_> = text.lines().map(|s| s.to_string()).collect();
         for line in &raw_lines {
-            let is_headline = line.starts_with('#');
+            let is_start_of_headline = line.starts_with('#');
 
-            if is_headline {
+            if is_start_of_headline {
+                is_inside_headline = true;
+            }
+
+            if line.is_empty() {
+                is_inside_headline = false;
+            }
+
+            if is_inside_headline {
                 let runs = vec![TextRun {
                     len: line.len(),
                     font: Font {
@@ -935,10 +943,13 @@ impl Element for EditorElement {
                     .take_while(|&character| character == '#')
                     .count();
 
-                lines.push(RenderedLine::new(
-                    LineType::HeadlineStart(level),
-                    shaped_line,
-                ));
+                let kind = if is_start_of_headline {
+                    LineType::HeadlineStart(level)
+                } else {
+                    LineType::HeadlineNotStart
+                };
+
+                lines.push(RenderedLine::new(kind, shaped_line));
             } else {
                 let runs = vec![TextRun {
                     len: line.len(),
