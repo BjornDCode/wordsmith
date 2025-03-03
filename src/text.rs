@@ -34,14 +34,14 @@ impl TrimmedText {
     pub fn to_string(&self) -> String {
         let content = self.text.to_string();
 
-        if content.starts_with('#') {
-            let level = content
-                .chars()
-                .take_while(|&character| character == '#')
-                .count();
+        // if content.starts_with('#') {
+        //     let level = content
+        //         .chars()
+        //         .take_while(|&character| character == '#')
+        //         .count();
 
-            return content.chars().skip(level + 1).collect();
-        }
+        //     return content.chars().skip(level + 1).collect();
+        // }
 
         return content;
     }

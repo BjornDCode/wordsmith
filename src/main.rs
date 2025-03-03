@@ -79,7 +79,7 @@ fn main() {
             base: PathBuf::from("resources"),
         })
         .run(|context: &mut AppContext| {
-            let bounds = Bounds::centered(None, size(px(800.), px(600.)), context);
+            let bounds = Bounds::centered(None, size(px(1024.), px(768.)), context);
 
             context.bind_keys([
                 KeyBinding::new("cmd-q", Quit, None),
