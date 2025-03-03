@@ -27,7 +27,7 @@ pub const CONTAINER_WIDTH: Pixels = px(655.36); // Base width + Margin * 2
 pub struct Editor {
     focus_handle: FocusHandle,
     content: Content,
-    // edit_location: EditLocation,
+    edit_location: EditLocation,
 }
 
 #[derive(Debug, Clone)]
@@ -36,140 +36,163 @@ enum EditLocation {
     Selection(Selection),
 }
 
-impl EditLocation {
-    pub fn starting_point(&self, next_direction: SelectionDirection) -> CursorPoint {
-        match self.clone() {
-            EditLocation::Cursor(cursor) => cursor.position,
-            EditLocation::Selection(selection) => {
-                let reversed = next_direction == SelectionDirection::Backwards;
+// impl EditLocation {
+//     pub fn starting_point(&self, next_direction: SelectionDirection) -> CursorPoint {
+//         match self.clone() {
+//             EditLocation::Cursor(cursor) => cursor.position,
+//             EditLocation::Selection(selection) => {
+//                 let reversed = next_direction == SelectionDirection::Backwards;
 
-                match (selection.direction(), reversed) {
-                    (SelectionDirection::Backwards, true) => selection.end,
-                    (SelectionDirection::Backwards, false) => selection.start,
-                    (SelectionDirection::Forwards, true) => selection.start,
-                    (SelectionDirection::Forwards, false) => selection.end,
-                }
-            }
-        }
-    }
-}
+//                 match (selection.direction(), reversed) {
+//                     (SelectionDirection::Backwards, true) => selection.end,
+//                     (SelectionDirection::Backwards, false) => selection.start,
+//                     (SelectionDirection::Forwards, true) => selection.start,
+//                     (SelectionDirection::Forwards, false) => selection.end,
+//                 }
+//             }
+//         }
+//     }
+// }
+
+// #[derive(Debug, Clone)]
+// pub struct CursorPoint {
+//     pub block_index: usize,
+//     pub offset: usize,
+// }
+
+// impl CursorPoint {
+//     pub fn new(block_index: usize, offset: usize) -> CursorPoint {
+//         CursorPoint {
+//             block_index,
+//             offset,
+//         }
+//     }
+// }
+
+// impl PartialEq for CursorPoint {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.block_index == other.block_index && self.offset == other.offset
+//     }
+// }
+
+// impl Eq for CursorPoint {}
+
+// impl Ord for CursorPoint {
+//     fn cmp(&self, other: &Self) -> Ordering {
+//         self.partial_cmp(other).unwrap()
+//     }
+// }
+
+// impl PartialOrd for CursorPoint {
+//     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+//         if self.block_index == other.block_index {
+//             if self.offset < other.offset {
+//                 return Some(Ordering::Less);
+//             }
+
+//             if self.offset > other.offset {
+//                 return Some(Ordering::Greater);
+//             }
+
+//             return Some(Ordering::Equal);
+//         }
+
+//         if self.block_index < other.block_index {
+//             return Some(Ordering::Less);
+//         }
+
+//         if self.block_index > other.block_index {
+//             return Some(Ordering::Greater);
+//         }
+
+//         return Some(Ordering::Equal);
+//     }
+// }
 
 #[derive(Debug, Clone)]
-pub struct CursorPoint {
-    pub block_index: usize,
-    pub offset: usize,
+struct EditorPosition {
+    x: isize,
+    y: usize,
 }
 
-impl CursorPoint {
-    pub fn new(block_index: usize, offset: usize) -> CursorPoint {
-        CursorPoint {
-            block_index,
-            offset,
-        }
-    }
-}
-
-impl PartialEq for CursorPoint {
-    fn eq(&self, other: &Self) -> bool {
-        self.block_index == other.block_index && self.offset == other.offset
-    }
-}
-
-impl Eq for CursorPoint {}
-
-impl Ord for CursorPoint {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialOrd for CursorPoint {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.block_index == other.block_index {
-            if self.offset < other.offset {
-                return Some(Ordering::Less);
-            }
-
-            if self.offset > other.offset {
-                return Some(Ordering::Greater);
-            }
-
-            return Some(Ordering::Equal);
-        }
-
-        if self.block_index < other.block_index {
-            return Some(Ordering::Less);
-        }
-
-        if self.block_index > other.block_index {
-            return Some(Ordering::Greater);
-        }
-
-        return Some(Ordering::Equal);
+impl EditorPosition {
+    pub fn new(x: isize, y: usize) -> EditorPosition {
+        return EditorPosition { x, y };
     }
 }
 
 #[derive(Debug, Clone)]
 struct Cursor {
-    position: CursorPoint,
-    preferred_x: usize,
+    position: EditorPosition,
+    preferred_x: isize,
+}
+
+impl Cursor {
+    pub fn new(x: isize, y: usize, preferred_x: isize) -> Cursor {
+        return Cursor {
+            position: EditorPosition::new(x, y),
+            preferred_x,
+        };
+    }
 }
 
 #[derive(Debug, Clone)]
 struct Selection {
-    start: CursorPoint,
-    end: CursorPoint,
+    start: EditorPosition,
+    end: EditorPosition,
 }
 
-impl Selection {
-    pub fn direction(&self) -> SelectionDirection {
-        if self.end < self.start {
-            SelectionDirection::Backwards
-        } else {
-            SelectionDirection::Forwards
-        }
-    }
+// impl Selection {
+//     pub fn direction(&self) -> SelectionDirection {
+//         if self.end < self.start {
+//             SelectionDirection::Backwards
+//         } else {
+//             SelectionDirection::Forwards
+//         }
+//     }
 
-    pub fn smallest(&self) -> CursorPoint {
-        if self.start < self.end {
-            return self.start.clone();
-        } else {
-            return self.end.clone();
-        }
-    }
+//     pub fn smallest(&self) -> CursorPoint {
+//         if self.start < self.end {
+//             return self.start.clone();
+//         } else {
+//             return self.end.clone();
+//         }
+//     }
 
-    pub fn largest(&self) -> CursorPoint {
-        if self.start > self.end {
-            return self.start.clone();
-        } else {
-            return self.end.clone();
-        }
-    }
-}
+//     pub fn largest(&self) -> CursorPoint {
+//         if self.start > self.end {
+//             return self.start.clone();
+//         } else {
+//             return self.end.clone();
+//         }
+//     }
+// }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum SelectionDirection {
-    Backwards,
-    Forwards,
-}
+// #[derive(Debug, Clone, PartialEq, Eq)]
+// enum SelectionDirection {
+//     Backwards,
+//     Forwards,
+// }
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        let edit_location = EditLocation::Selection(Selection {
-            start: CursorPoint {
-                offset: 6,
-                block_index: 4,
-            },
-            end: CursorPoint {
-                offset: 65,
-                block_index: 4,
-            },
-        });
+        // let edit_location = EditLocation::Selection(Selection {
+        //     start: CursorPoint {
+        //         offset: 6,
+        //         block_index: 4,
+        //     },
+        //     end: CursorPoint {
+        //         offset: 65,
+        //         block_index: 4,
+        //     },
+        // });
+
+        let edit_location = EditLocation::Cursor(Cursor::new(0, 0, 0));
 
         return Editor {
             focus_handle,
             content: Content::new("## This is a headline\n\nDolor elend vitae porta iaculis etiam commodo. Mus erat lacus penatibus congue ultricies. Elementum tristique sociosqu curae etiam consequat et arcu placerat est.\n\nHabitant primis praesent malesuada lorem parturient lobortis metus. Pulvinar ultrices ligula id ac quisque curae, leo est.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
-            // edit_location
+            edit_location
         };
     }
 
@@ -847,8 +870,8 @@ impl RenderedLine {
 
 struct PrepaintState {
     lines: Vec<RenderedLine>,
+    edit_location_rectangles: Vec<PaintQuad>,
     // blocks: Vec<RenderedBlock>,
-    // edit_location_rectangles: Option<Vec<PaintQuad>>,
     // headline_markers: Vec<RenderedHeadlineMarker>,
 }
 
@@ -933,6 +956,26 @@ impl Element for EditorElement {
                 lines.push(RenderedLine::new(LineType::Regular, shaped_line));
             }
         }
+
+        let edit_location_rectangles = match input.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                let left = bounds.left()
+                    + EDITOR_HORIZONTAL_MARGIN
+                    + px(cursor.position.x as f32) * CHARACTER_WIDTH
+                    - px(1.);
+                let top =
+                    bounds.top() + context.line_height() * px(cursor.position.y as f32) + px(2.);
+
+                let rectangles = vec![fill(
+                    Bounds::new(point(left, top), size(px(2.), px(20.))),
+                    rgb(COLOR_BLUE_DARK),
+                )];
+
+                rectangles
+            }
+            EditLocation::Selection(selection) => todo!(),
+        };
+
         // let blocks = content.blocks();
 
         // let mut headline_markers = vec![];
@@ -1055,8 +1098,8 @@ impl Element for EditorElement {
 
         PrepaintState {
             lines,
+            edit_location_rectangles,
             // blocks: rendered_blocks,
-            // edit_location_rectangles: Some(edit_location_rectangles),
             // headline_markers,
         }
     }
@@ -1070,6 +1113,7 @@ impl Element for EditorElement {
         context: &mut gpui::WindowContext,
     ) {
         let focus_handle = self.input.read(context).focus_handle.clone();
+        let edit_location_rectangles = prepaint.edit_location_rectangles.clone();
         let lines = prepaint.lines.clone();
 
         for (index, line) in lines.iter().enumerate() {
@@ -1094,13 +1138,11 @@ impl Element for EditorElement {
         // let blocks = prepaint.blocks.clone().into_iter();
         // let headline_markers = prepaint.headline_markers.clone();
 
-        // if focus_handle.is_focused(context) {
-        //     if let Some(edit_location_rectanlges) = prepaint.edit_location_rectangles.take() {
-        //         for rectangle in edit_location_rectanlges {
-        //             context.paint_quad(rectangle);
-        //         }
-        //     }
-        // }
+        if focus_handle.is_focused(context) {
+            for rectangle in edit_location_rectangles {
+                context.paint_quad(rectangle);
+            }
+        }
 
         // for block in blocks {
         //     // The reason we are not just looping over lines directly is that there seem to be a rogue newline at the end

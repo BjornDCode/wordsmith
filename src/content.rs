@@ -8,19 +8,19 @@ use gpui::{
     rgb, Font, FontWeight, Hsla, Pixels, SharedString, TextRun, WindowTextSystem, WrappedLine,
 };
 
-use crate::{editor::CursorPoint, text::WrappedText, COLOR_GRAY_700, COLOR_GRAY_800};
+use crate::{text::WrappedText, COLOR_GRAY_700, COLOR_GRAY_800};
 
-#[derive(Debug)]
-pub struct Point {
-    pub x: usize,
-    pub y: usize,
-}
+// #[derive(Debug)]
+// pub struct Point {
+//     pub x: usize,
+//     pub y: usize,
+// }
 
-impl Point {
-    pub fn new(x: usize, y: usize) -> Point {
-        Point { x, y }
-    }
-}
+// impl Point {
+//     pub fn new(x: usize, y: usize) -> Point {
+//         Point { x, y }
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub struct Content {
