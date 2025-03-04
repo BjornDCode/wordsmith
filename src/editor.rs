@@ -3,8 +3,8 @@ use std::ops::Index;
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    Font, FontWeight, Hsla, LineLayout, PaintQuad, Pixels, Point, ShapedLine, SharedString, Style,
-    TextRun, View, ViewContext,
+    Font, FontWeight, Hsla, LineLayout, PaintQuad, Pixels, Point, Position, ShapedLine,
+    SharedString, Style, TextRun, View, ViewContext,
 };
 
 // use crate::content::{Block, Content, Size};
@@ -297,21 +297,19 @@ impl Editor {
         self.move_to(position, preferred_x, context);
     }
 
-    // fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
-    //     let position = self.beginning_of_file_position();
+    fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
+        let position = self.beginning_of_file_position();
 
-    //     self.move_to(position, 0, context);
-    // }
+        self.move_to(position, 0, context);
+    }
 
-    // fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
-    //     let position = self.end_of_file_position();
+    fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
+        let position = self.end_of_file_position();
 
-    //     let block = self.content.block(position.block_index);
-    //     let last_line_index = block.line_length() - 1;
-    //     let preferred_x = block.length_of_line(last_line_index);
+        let line = self.content.line(position.y);
 
-    //     self.move_to(position, preferred_x, context);
-    // }
+        self.move_to(position, line.end(), context);
+    }
 
     // fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
     //     let starting_point = self
@@ -621,18 +619,18 @@ impl Editor {
         return EditorPosition::new(point.y + 1, x);
     }
 
-    // fn beginning_of_file_position(&self) -> CursorPoint {
-    //     return CursorPoint::new(0, 0);
-    // }
+    fn beginning_of_file_position(&self) -> EditorPosition {
+        let line = self.content.line(0);
 
-    // fn end_of_file_position(&self) -> CursorPoint {
-    //     let block_index = self.content.blocks().len() - 1;
+        return EditorPosition::new(0, line.beginning());
+    }
 
-    //     let block = self.content.block(block_index);
-    //     let offset = block.length() - 1;
+    fn end_of_file_position(&self) -> EditorPosition {
+        let y = self.content.lines().len() - 1;
+        let line = self.content.line(y);
 
-    //     return CursorPoint::new(block_index, offset);
-    // }
+        return EditorPosition::new(y, line.end());
+    }
 
     // fn beginning_of_line_position(&self, point: CursorPoint) -> CursorPoint {
     //     let block = self.content.block(point.block_index);
@@ -748,8 +746,8 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_right))
             .on_action(context.listener(Self::move_up))
             .on_action(context.listener(Self::move_down))
-            // .on_action(context.listener(Self::move_beginning_of_file))
-            // .on_action(context.listener(Self::move_end_of_file))
+            .on_action(context.listener(Self::move_beginning_of_file))
+            .on_action(context.listener(Self::move_end_of_file))
             // .on_action(context.listener(Self::move_beginning_of_line))
             // .on_action(context.listener(Self::move_end_of_line))
             // .on_action(context.listener(Self::move_beginning_of_word))
