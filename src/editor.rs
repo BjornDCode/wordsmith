@@ -223,7 +223,7 @@ enum SelectionDirection {
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        let edit_location = EditLocation::Cursor(Cursor::new(3, 1, 0));
+        let edit_location = EditLocation::Cursor(Cursor::new(0, 40, 0));
         // let edit_location = EditLocation::Selection(Selection::new(
         //     EditorPosition::new(0, -2),
         //     EditorPosition::new(5, 20),
@@ -248,22 +248,17 @@ impl Editor {
         self.move_to(position, preferred_x, context);
     }
 
-    // fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => {
-    //             let position = self.right_position(cursor.position);
-    //             let preferred_x = self.preferred_x(position.clone());
+    fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.largest(),
+        };
 
-    //             self.move_to(position, preferred_x, context);
-    //         }
-    //         EditLocation::Selection(selection) => {
-    //             let position = selection.largest();
-    //             let preferred_x = self.preferred_x(position.clone());
+        let position = self.right_position(starting_point.clone());
+        let preferred_x = self.preferred_x(starting_point);
 
-    //             self.move_to(position, preferred_x, context);
-    //         }
-    //     }
-    // }
+        self.move_to(position, preferred_x, context);
+    }
 
     // fn move_up(&mut self, _: &MoveUp, context: &mut ViewContext<Self>) {
     //     let starting_point = self
@@ -575,32 +570,27 @@ impl Editor {
         if point.x == line.beginning() {
             let new_line_index = point.y - 1;
             let line = self.content.line(new_line_index);
-            let length = line.length();
 
-            return EditorPosition::new(new_line_index, length as isize);
+            return EditorPosition::new(new_line_index, line.end());
         }
 
         return EditorPosition::new(point.y, point.x - 1);
     }
 
-    // fn right_position(&self, point: CursorPoint) -> CursorPoint {
-    //     let block_length = self.content.block_length(point.block_index);
-    //     let block_length = if block_length == 0 {
-    //         0
-    //     } else {
-    //         self.content.block_length(point.block_index) - 1
-    //     };
+    fn right_position(&self, point: EditorPosition) -> EditorPosition {
+        let line_length = self.content.lines().len();
+        let line = self.content.line(point.y);
 
-    //     if point.block_index == self.content.blocks().len() - 1 && point.offset == block_length {
-    //         return point;
-    //     }
+        if point.y == line_length - 1 && point.x == line.end() {
+            return point;
+        }
 
-    //     if point.offset == block_length {
-    //         return CursorPoint::new(point.block_index + 1, 0);
-    //     }
+        if point.x == line.end() {
+            return EditorPosition::new(point.y + 1, 0);
+        }
 
-    //     return CursorPoint::new(point.block_index, point.offset + 1);
-    // }
+        return EditorPosition::new(point.y, point.x + 1);
+    }
 
     // fn up_position(&self, point: CursorPoint) -> CursorPoint {
     //     let block = self.content.block(point.block_index);
@@ -834,7 +824,7 @@ impl gpui::Render for Editor {
             .track_focus(&self.focus_handle(context))
             .key_context("editor")
             .on_action(context.listener(Self::move_left))
-            // .on_action(context.listener(Self::move_right))
+            .on_action(context.listener(Self::move_right))
             // .on_action(context.listener(Self::move_up))
             // .on_action(context.listener(Self::move_down))
             // .on_action(context.listener(Self::move_beginning_of_file))

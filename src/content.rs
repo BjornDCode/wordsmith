@@ -44,6 +44,14 @@ impl Line {
         };
     }
 
+    pub fn end(&self) -> isize {
+        return match self.kind {
+            LineType::HeadlineStart(level) => self.length() as isize - (level as isize) - 1,
+            LineType::HeadlineNotStart => self.text.len() as isize,
+            LineType::Normal => self.text.len() as isize,
+        };
+    }
+
     pub fn length(&self) -> usize {
         return self.text.len();
     }
