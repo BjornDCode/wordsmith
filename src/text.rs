@@ -114,9 +114,9 @@ impl WrappedText {
         return offset + wrap_points_before_offset;
     }
 
-    pub fn previous_word_boundary(&self, offset: usize) -> Option<usize> {
+    pub fn previous_word_boundary(&self, offset: usize) -> usize {
         if offset == 0 {
-            return None;
+            return 0;
         }
 
         let resolved_offset = self.resolve_offset(offset);
@@ -137,8 +137,8 @@ impl WrappedText {
             .position(|character| character.is_whitespace());
 
         match index {
-            Some(index) => Some(offset - index - initial_whitespaces),
-            None => Some(0),
+            Some(index) => offset - index - initial_whitespaces,
+            None => 0,
         }
     }
 

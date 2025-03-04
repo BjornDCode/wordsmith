@@ -8,7 +8,7 @@ use gpui::{
     rgb, Font, FontWeight, Hsla, Pixels, SharedString, TextRun, WindowTextSystem, WrappedLine,
 };
 
-use crate::{text::WrappedText, COLOR_GRAY_700, COLOR_GRAY_800};
+use crate::{editor::EditorPosition, text::WrappedText, COLOR_GRAY_700, COLOR_GRAY_800};
 
 // #[derive(Debug)]
 // pub struct Point {
@@ -67,6 +67,43 @@ impl Line {
 
         return preferred_x;
     }
+
+    // pub fn previous_word_boundary(&self, x: isize) -> isize {
+    //     let x = self.editor_x_to_index(x);
+    //     let content = self.text.clone();
+    //     let slice = &content[..x];
+
+    //     let initial_whitespaces = slice
+    //         .chars()
+    //         .rev()
+    //         .take_while(|character| character.is_whitespace())
+    //         .count();
+
+    //     let index = slice
+    //         .chars()
+    //         .rev()
+    //         .skip(initial_whitespaces)
+    //         .position(|character| character.is_whitespace())
+    //         .unwrap_or(0);
+
+    //     return self.index_to_editor_x(index);
+    // }
+
+    // fn editor_x_to_index(&self, x: isize) -> usize {
+    //     return match self.kind {
+    //         LineType::HeadlineStart(level) => x as usize + level + 1,
+    //         LineType::HeadlineNotStart => x as usize,
+    //         LineType::Normal => x as usize,
+    //     };
+    // }
+
+    // fn index_to_editor_x(&self, index: usize) -> isize {
+    //     return match self.kind {
+    //         LineType::HeadlineStart(level) => index as isize - level as isize - 1,
+    //         LineType::HeadlineNotStart => index as isize,
+    //         LineType::Normal => index as isize,
+    //     };
+    // }
 }
 
 #[derive(Debug, Clone)]
@@ -82,12 +119,17 @@ impl Content {
         Content { original, wrapped }
     }
 
-    pub fn text(&self) -> String {
-        return self.wrapped.to_string();
+    pub fn text(&self) -> WrappedText {
+        return self.wrapped.clone();
     }
 
     pub fn lines(&self) -> Vec<Line> {
-        let raw_lines: Vec<_> = self.text().lines().map(|s| s.to_string()).collect();
+        let raw_lines: Vec<_> = self
+            .text()
+            .to_string()
+            .lines()
+            .map(|s| s.to_string())
+            .collect();
         let mut lines: Vec<Line> = vec![];
         let mut is_inside_headline = false;
 
@@ -125,6 +167,43 @@ impl Content {
         let lines = self.lines();
 
         return lines.index(index).clone();
+    }
+
+    pub fn position_to_offset(&self, position: EditorPosition) -> usize {
+        let (lines, wrap_points) = self.text().lines_and_wrap_points();
+        let previous_lines = lines.iter().take(position.y);
+        let mut offset = 0;
+
+        for line in previous_lines {
+            offset += line.len();
+            offset += 1; // Newline
+        }
+
+        let included_wrap_points = wrap_points.iter().filter(|x| **x < offset).count();
+
+        offset -= included_wrap_points;
+        offset += position.x as usize;
+
+        return offset;
+    }
+
+    pub fn offset_to_position(&self, offset: usize) -> EditorPosition {
+        let (lines, wrap_points) = self.text().lines_and_wrap_points();
+        let mut remaining_offset = offset;
+        let mut y = 0;
+
+        for line in lines {
+            if line.len() > remaining_offset {
+                break;
+            }
+
+            y += 1;
+            remaining_offset -= line.len();
+        }
+
+        remaining_offset -= wrap_points.iter().filter(|x| **x < offset).count();
+
+        return EditorPosition::new(y, remaining_offset as isize);
     }
 
     // pub fn lines() {}
