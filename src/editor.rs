@@ -116,8 +116,48 @@ struct EditorPosition {
 }
 
 impl EditorPosition {
-    pub fn new(x: isize, y: usize) -> EditorPosition {
+    pub fn new(y: usize, x: isize) -> EditorPosition {
         return EditorPosition { x, y };
+    }
+}
+
+impl PartialEq for EditorPosition {
+    fn eq(&self, other: &Self) -> bool {
+        return self.x == other.x && self.y == other.y;
+    }
+}
+
+impl Eq for EditorPosition {}
+
+impl Ord for EditorPosition {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for EditorPosition {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.y == other.y {
+            if self.x < other.x {
+                return Some(Ordering::Less);
+            }
+
+            if self.x > other.x {
+                return Some(Ordering::Greater);
+            }
+
+            return Some(Ordering::Equal);
+        }
+
+        if self.y < other.y {
+            return Some(Ordering::Less);
+        }
+
+        if self.y > other.y {
+            return Some(Ordering::Greater);
+        }
+
+        return Some(Ordering::Equal);
     }
 }
 
@@ -128,9 +168,9 @@ struct Cursor {
 }
 
 impl Cursor {
-    pub fn new(x: isize, y: usize, preferred_x: isize) -> Cursor {
+    pub fn new(y: usize, x: isize, preferred_x: isize) -> Cursor {
         return Cursor {
-            position: EditorPosition::new(x, y),
+            position: EditorPosition::new(y, x),
             preferred_x,
         };
     }
@@ -142,52 +182,51 @@ struct Selection {
     end: EditorPosition,
 }
 
-// impl Selection {
-//     pub fn direction(&self) -> SelectionDirection {
-//         if self.end < self.start {
-//             SelectionDirection::Backwards
-//         } else {
-//             SelectionDirection::Forwards
-//         }
-//     }
+impl Selection {
+    pub fn new(start: EditorPosition, end: EditorPosition) -> Selection {
+        return Selection { start, end };
+    }
+}
 
-//     pub fn smallest(&self) -> CursorPoint {
-//         if self.start < self.end {
-//             return self.start.clone();
-//         } else {
-//             return self.end.clone();
-//         }
-//     }
+impl Selection {
+    pub fn direction(&self) -> SelectionDirection {
+        if self.end < self.start {
+            SelectionDirection::Backwards
+        } else {
+            SelectionDirection::Forwards
+        }
+    }
 
-//     pub fn largest(&self) -> CursorPoint {
-//         if self.start > self.end {
-//             return self.start.clone();
-//         } else {
-//             return self.end.clone();
-//         }
-//     }
-// }
+    pub fn smallest(&self) -> EditorPosition {
+        if self.start < self.end {
+            return self.start.clone();
+        } else {
+            return self.end.clone();
+        }
+    }
 
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// enum SelectionDirection {
-//     Backwards,
-//     Forwards,
-// }
+    pub fn largest(&self) -> EditorPosition {
+        if self.start > self.end {
+            return self.start.clone();
+        } else {
+            return self.end.clone();
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SelectionDirection {
+    Backwards,
+    Forwards,
+}
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        // let edit_location = EditLocation::Selection(Selection {
-        //     start: CursorPoint {
-        //         offset: 6,
-        //         block_index: 4,
-        //     },
-        //     end: CursorPoint {
-        //         offset: 65,
-        //         block_index: 4,
-        //     },
-        // });
-
-        let edit_location = EditLocation::Cursor(Cursor::new(0, 0, 0));
+        // let edit_location = EditLocation::Cursor(Cursor::new(0, 0, 0));
+        let edit_location = EditLocation::Selection(Selection::new(
+            EditorPosition::new(0, -2),
+            EditorPosition::new(5, 20),
+        ));
 
         return Editor {
             focus_handle,
@@ -984,7 +1023,101 @@ impl Element for EditorElement {
 
                 rectangles
             }
-            EditLocation::Selection(selection) => todo!(),
+            EditLocation::Selection(selection) => {
+                let mut rectangles = vec![];
+
+                let smallest = selection.smallest();
+                let largest = selection.largest();
+
+                let line_range = smallest.y..largest.y + 1;
+
+                for index in line_range.clone() {
+                    let start = if index == line_range.start {
+                        smallest.x
+                    } else {
+                        0
+                    };
+                    let end = if index == line_range.end - 1 {
+                        largest.x
+                    } else {
+                        CHARACTER_COUNT_PER_LINE as isize
+                    };
+
+                    let left = bounds.left()
+                        + EDITOR_HORIZONTAL_MARGIN
+                        + px(start as f32) * CHARACTER_WIDTH
+                        - px(1.);
+                    let top = bounds.top() + px(index as f32) * context.line_height();
+                    let width = px((end - start) as f32) * CHARACTER_WIDTH + px(2.);
+
+                    let bounds = Bounds::new(point(left, top), size(width, context.line_height()));
+                    let rectangle = fill(bounds, rgb(COLOR_BLUE_MEDIUM));
+
+                    rectangles.push(rectangle);
+                }
+
+                rectangles
+
+                //         let mut rectangles = vec![];
+                //         let smallest_point = std::cmp::min(selection.start.clone(), selection.end.clone());
+                //         let largest_point = std::cmp::max(selection.start.clone(), selection.end.clone());
+                //         let block_range = smallest_point.block_index..largest_point.block_index + 1;
+
+                //         for block_index in block_range.clone() {
+                //             let block_start_line_index = content.block_start(block_index);
+                //             let block = content.block(block_index);
+                //             let min = if block_index == block_range.start {
+                //                 smallest_point.offset
+                //             } else {
+                //                 0
+                //             };
+                //             let max = if block_index == block_range.end - 1 {
+                //                 largest_point.offset
+                //             } else {
+                //                 block.length()
+                //             };
+                //             let line_range = block.line_range(min, max);
+
+                //             for line_index in line_range.clone() {
+                //                 let start = if line_index == line_range.start {
+                //                     block.offset_in_line(line_index, min)
+                //                 } else {
+                //                     0
+                //                 };
+                //                 let end = if block_index == block_range.end - 1
+                //                     && line_index == line_range.end - 1
+                //                 {
+                //                     if block_index == block_range.end - 1 {
+                //                         block.offset_in_line(line_index, max)
+                //                     } else {
+                //                         let offset = block.offset_in_line(line_index, min);
+
+                //                         CHARACTER_COUNT_PER_LINE - offset
+                //                     }
+                //                 } else {
+                //                     CHARACTER_COUNT_PER_LINE - start
+                //                 };
+
+                //                 let left = bounds.left() + px(start as f32) * CHARACTER_WIDTH - px(1.);
+                //                 let top = bounds.top()
+                //                     + px(block_start_line_index as f32) * context.line_height()
+                //                     + px(line_index as f32) * context.line_height();
+                //                 let width = if line_range.start == line_range.end - 1 {
+                //                     (px(end as f32) - px(start as f32)) * CHARACTER_WIDTH + px(2.)
+                //                 } else {
+                //                     px(end as f32) * CHARACTER_WIDTH + px(2.)
+                //                 };
+
+                //                 let bounds =
+                //                     Bounds::new(point(left, top), size(width, context.line_height()));
+                //                 let rectangle = fill(bounds, rgb(COLOR_BLUE_MEDIUM));
+
+                //                 rectangles.push(rectangle);
+                //             }
+                //         }
+
+                //         rectangles
+            }
         };
 
         // let blocks = content.blocks();
@@ -1127,6 +1260,12 @@ impl Element for EditorElement {
         let edit_location_rectangles = prepaint.edit_location_rectangles.clone();
         let lines = prepaint.lines.clone();
 
+        if focus_handle.is_focused(context) {
+            for rectangle in edit_location_rectangles {
+                context.paint_quad(rectangle);
+            }
+        }
+
         for (index, line) in lines.iter().enumerate() {
             let offset = match line.kind {
                 LineType::HeadlineStart(level) => {
@@ -1148,12 +1287,6 @@ impl Element for EditorElement {
 
         // let blocks = prepaint.blocks.clone().into_iter();
         // let headline_markers = prepaint.headline_markers.clone();
-
-        if focus_handle.is_focused(context) {
-            for rectangle in edit_location_rectangles {
-                context.paint_quad(rectangle);
-            }
-        }
 
         // for block in blocks {
         //     // The reason we are not just looping over lines directly is that there seem to be a rogue newline at the end
