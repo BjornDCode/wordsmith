@@ -55,6 +55,18 @@ impl Line {
     pub fn length(&self) -> usize {
         return self.text.len();
     }
+
+    pub fn clamp_x(&self, preferred_x: isize) -> isize {
+        if preferred_x < self.beginning() {
+            return self.beginning();
+        }
+
+        if preferred_x > self.end() {
+            return self.end();
+        }
+
+        return preferred_x;
+    }
 }
 
 #[derive(Debug, Clone)]
