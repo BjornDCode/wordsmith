@@ -10,8 +10,9 @@ use gpui::{
 // use crate::content::{Block, Content, Size};
 // use crate::content::{Render, RenderedBlock};
 use crate::{
-    content::Content, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown,
-    MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
+    content::{Content, Line, LineType},
+    MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
+    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
     SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord, SelectDown,
     SelectEndOfFile, SelectEndOfLine, SelectEndOfWord, SelectLeft, SelectRight, SelectUp,
     COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_700, COLOR_GRAY_800,
@@ -222,11 +223,11 @@ enum SelectionDirection {
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        // let edit_location = EditLocation::Cursor(Cursor::new(0, 0, 0));
-        let edit_location = EditLocation::Selection(Selection::new(
-            EditorPosition::new(0, -2),
-            EditorPosition::new(5, 20),
-        ));
+        let edit_location = EditLocation::Cursor(Cursor::new(3, 1, 0));
+        // let edit_location = EditLocation::Selection(Selection::new(
+        //     EditorPosition::new(0, -2),
+        //     EditorPosition::new(5, 20),
+        // ));
 
         return Editor {
             focus_handle,
@@ -235,22 +236,17 @@ impl Editor {
         };
     }
 
-    // fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => {
-    //             let position = self.left_position(cursor.position);
-    //             let preferred_x = self.preferred_x(position.clone());
+    fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.smallest(),
+        };
 
-    //             self.move_to(position, preferred_x, context);
-    //         }
-    //         EditLocation::Selection(selection) => {
-    //             let position = selection.smallest();
-    //             let preferred_x = self.preferred_x(position.clone());
+        let position = self.left_position(starting_point.clone());
+        let preferred_x = self.preferred_x(starting_point);
 
-    //             self.move_to(position, preferred_x, context);
-    //         }
-    //     }
-    // }
+        self.move_to(position, preferred_x, context);
+    }
 
     // fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
     //     match self.edit_location.clone() {
@@ -526,19 +522,19 @@ impl Editor {
     //     }
     // }
 
-    // fn move_to(
-    //     &mut self,
-    //     position: CursorPoint,
-    //     preferred_x: usize,
-    //     context: &mut ViewContext<Self>,
-    // ) {
-    //     self.edit_location = EditLocation::Cursor(Cursor {
-    //         position,
-    //         preferred_x,
-    //     });
+    fn move_to(
+        &mut self,
+        position: EditorPosition,
+        preferred_x: isize,
+        context: &mut ViewContext<Self>,
+    ) {
+        self.edit_location = EditLocation::Cursor(Cursor {
+            position,
+            preferred_x,
+        });
 
-    //     context.notify();
-    // }
+        context.notify();
+    }
 
     // fn select(&mut self, start: CursorPoint, end: CursorPoint, context: &mut ViewContext<Self>) {
     //     if start == end {
@@ -561,32 +557,31 @@ impl Editor {
     //     self.select(start, end, context);
     // }
 
-    // fn preferred_x(&self, position: CursorPoint) -> usize {
-    //     let block = self.content.block(position.block_index);
-    //     let line_index = block.line_of_offset(position.offset);
+    fn preferred_x(&self, position: EditorPosition) -> isize {
+        return 0;
+        // let block = self.content.block(position.block_index);
+        // let line_index = block.line_of_offset(position.offset);
 
-    //     return block.offset_in_line(line_index, position.offset);
-    // }
+        // return block.offset_in_line(line_index, position.offset);
+    }
 
-    // fn left_position(&self, point: CursorPoint) -> CursorPoint {
-    //     if point.block_index == 0 && point.offset == 0 {
-    //         return point;
-    //     }
+    fn left_position(&self, point: EditorPosition) -> EditorPosition {
+        let line = self.content.line(point.y);
 
-    //     if point.offset == 0 {
-    //         let new_block_index = point.block_index - 1;
-    //         let block_length = self.content.block_length(new_block_index);
-    //         let new_offset = if block_length == 0 {
-    //             0
-    //         } else {
-    //             self.content.block_length(new_block_index) - 1
-    //         };
+        if point.y == 0 && point.x == line.beginning() {
+            return point;
+        }
 
-    //         return CursorPoint::new(new_block_index, new_offset);
-    //     }
+        if point.x == line.beginning() {
+            let new_line_index = point.y - 1;
+            let line = self.content.line(new_line_index);
+            let length = line.length();
 
-    //     return CursorPoint::new(point.block_index, point.offset - 1);
-    // }
+            return EditorPosition::new(new_line_index, length as isize);
+        }
+
+        return EditorPosition::new(point.y, point.x - 1);
+    }
 
     // fn right_position(&self, point: CursorPoint) -> CursorPoint {
     //     let block_length = self.content.block_length(point.block_index);
@@ -838,7 +833,7 @@ impl gpui::Render for Editor {
         div()
             .track_focus(&self.focus_handle(context))
             .key_context("editor")
-            // .on_action(context.listener(Self::move_left))
+            .on_action(context.listener(Self::move_left))
             // .on_action(context.listener(Self::move_right))
             // .on_action(context.listener(Self::move_up))
             // .on_action(context.listener(Self::move_down))
@@ -889,21 +884,17 @@ impl IntoElement for EditorElement {
 }
 
 #[derive(Debug, Clone)]
-enum LineType {
-    HeadlineStart(usize),
-    HeadlineNotStart,
-    Regular,
-}
-
-#[derive(Debug, Clone)]
 struct RenderedLine {
     shaped_line: ShapedLine,
-    kind: LineType,
+    raw_line: Line,
 }
 
 impl RenderedLine {
-    pub fn new(kind: LineType, shaped_line: ShapedLine) -> RenderedLine {
-        return RenderedLine { kind, shaped_line };
+    pub fn new(raw_line: Line, shaped_line: ShapedLine) -> RenderedLine {
+        return RenderedLine {
+            raw_line,
+            shaped_line,
+        };
     }
 }
 
@@ -947,22 +938,13 @@ impl Element for EditorElement {
         let mut lines: Vec<RenderedLine> = vec![];
         let mut is_inside_headline = false;
 
-        let text = content.text();
-        let raw_lines: Vec<_> = text.lines().map(|s| s.to_string()).collect();
+        // let text = content.text();
+        // let raw_lines: Vec<_> = text.lines().map(|s| s.to_string()).collect();
+        let raw_lines = content.lines();
         for line in &raw_lines {
-            let is_start_of_headline = line.starts_with('#');
-
-            if is_start_of_headline {
-                is_inside_headline = true;
-            }
-
-            if line.is_empty() {
-                is_inside_headline = false;
-            }
-
-            if is_inside_headline {
-                let runs = vec![TextRun {
-                    len: line.len(),
+            let run = match line.kind {
+                LineType::HeadlineStart(_) => TextRun {
+                    len: line.length(),
                     font: Font {
                         weight: FontWeight::EXTRA_BOLD,
                         ..style.font()
@@ -971,40 +953,91 @@ impl Element for EditorElement {
                     background_color: None,
                     underline: None,
                     strikethrough: None,
-                }];
-                let shaped_line = context
-                    .text_system()
-                    .shape_line(SharedString::from(line), font_size, &runs)
-                    .unwrap();
-
-                let level = line
-                    .chars()
-                    .take_while(|&character| character == '#')
-                    .count();
-
-                let kind = if is_start_of_headline {
-                    LineType::HeadlineStart(level)
-                } else {
-                    LineType::HeadlineNotStart
-                };
-
-                lines.push(RenderedLine::new(kind, shaped_line));
-            } else {
-                let runs = vec![TextRun {
-                    len: line.len(),
+                },
+                LineType::HeadlineNotStart => TextRun {
+                    len: line.length(),
+                    font: Font {
+                        weight: FontWeight::EXTRA_BOLD,
+                        ..style.font()
+                    },
+                    color: Hsla::from(rgb(COLOR_GRAY_800)),
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                },
+                LineType::Normal => TextRun {
+                    len: line.length(),
                     font: style.font(),
                     color: Hsla::from(rgb(COLOR_GRAY_700)),
                     background_color: None,
                     underline: None,
                     strikethrough: None,
-                }];
-                let shaped_line = context
-                    .text_system()
-                    .shape_line(SharedString::from(line), font_size, &runs)
-                    .unwrap();
+                },
+            };
+            let runs = vec![run];
 
-                lines.push(RenderedLine::new(LineType::Regular, shaped_line));
-            }
+            let shaped_line = context
+                .text_system()
+                .shape_line(SharedString::from(line.text.clone()), font_size, &runs)
+                .unwrap();
+
+            lines.push(RenderedLine::new(line.clone(), shaped_line));
+
+            // let is_start_of_headline = line.starts_with('#');
+
+            // if is_start_of_headline {
+            //     is_inside_headline = true;
+            // }
+
+            // if line.is_empty() {
+            //     is_inside_headline = false;
+            // }
+
+            // if is_inside_headline {
+            //     let runs = vec![TextRun {
+            //         len: line.len(),
+            //         font: Font {
+            //             weight: FontWeight::EXTRA_BOLD,
+            //             ..style.font()
+            //         },
+            //         color: Hsla::from(rgb(COLOR_GRAY_800)),
+            //         background_color: None,
+            //         underline: None,
+            //         strikethrough: None,
+            //     }];
+            //     let shaped_line = context
+            //         .text_system()
+            //         .shape_line(SharedString::from(line), font_size, &runs)
+            //         .unwrap();
+
+            //     let level = line
+            //         .chars()
+            //         .take_while(|&character| character == '#')
+            //         .count();
+
+            //     let kind = if is_start_of_headline {
+            //         LineType::HeadlineStart(level)
+            //     } else {
+            //         LineType::HeadlineNotStart
+            //     };
+
+            //     lines.push(RenderedLine::new(kind, shaped_line));
+            // } else {
+            //     let runs = vec![TextRun {
+            //         len: line.len(),
+            //         font: style.font(),
+            //         color: Hsla::from(rgb(COLOR_GRAY_700)),
+            //         background_color: None,
+            //         underline: None,
+            //         strikethrough: None,
+            //     }];
+            //     let shaped_line = context
+            //         .text_system()
+            //         .shape_line(SharedString::from(line), font_size, &runs)
+            //         .unwrap();
+
+            //     lines.push(RenderedLine::new(LineType::Regular, shaped_line));
+            // }
         }
 
         let edit_location_rectangles = match input.edit_location.clone() {
@@ -1267,12 +1300,12 @@ impl Element for EditorElement {
         }
 
         for (index, line) in lines.iter().enumerate() {
-            let offset = match line.kind {
+            let offset = match line.raw_line.kind {
                 LineType::HeadlineStart(level) => {
                     EDITOR_HORIZONTAL_MARGIN - px(level as f32 + 1 as f32) * CHARACTER_WIDTH
                 }
                 LineType::HeadlineNotStart => EDITOR_HORIZONTAL_MARGIN,
-                LineType::Regular => EDITOR_HORIZONTAL_MARGIN,
+                LineType::Normal => EDITOR_HORIZONTAL_MARGIN,
             };
 
             let point = Point::new(

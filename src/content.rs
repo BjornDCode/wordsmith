@@ -23,6 +23,33 @@ use crate::{text::WrappedText, COLOR_GRAY_700, COLOR_GRAY_800};
 // }
 
 #[derive(Debug, Clone)]
+pub enum LineType {
+    HeadlineStart(usize),
+    HeadlineNotStart,
+    Normal,
+}
+
+#[derive(Debug, Clone)]
+pub struct Line {
+    pub text: String,
+    pub kind: LineType,
+}
+
+impl Line {
+    pub fn beginning(&self) -> isize {
+        return match self.kind {
+            LineType::HeadlineStart(level) => level as isize * -1 - 1,
+            LineType::HeadlineNotStart => 0,
+            LineType::Normal => 0,
+        };
+    }
+
+    pub fn length(&self) -> usize {
+        return self.text.len();
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Content {
     original: SharedString,
     wrapped: WrappedText,
@@ -37,6 +64,47 @@ impl Content {
 
     pub fn text(&self) -> String {
         return self.wrapped.to_string();
+    }
+
+    pub fn lines(&self) -> Vec<Line> {
+        let raw_lines: Vec<_> = self.text().lines().map(|s| s.to_string()).collect();
+        let mut lines: Vec<Line> = vec![];
+        let mut is_inside_headline = false;
+
+        for raw in raw_lines {
+            let is_start_of_headline = raw.starts_with('#');
+
+            if is_start_of_headline {
+                is_inside_headline = true;
+            }
+
+            if raw.is_empty() {
+                is_inside_headline = false;
+            }
+
+            let kind = if is_start_of_headline {
+                let level = raw
+                    .chars()
+                    .take_while(|&character| character == '#')
+                    .count();
+
+                LineType::HeadlineStart(level)
+            } else if is_inside_headline {
+                LineType::HeadlineNotStart
+            } else {
+                LineType::Normal
+            };
+
+            lines.push(Line { text: raw, kind })
+        }
+
+        return lines;
+    }
+
+    pub fn line(&self, index: usize) -> Line {
+        let lines = self.lines();
+
+        return lines.index(index).clone();
     }
 
     // pub fn lines() {}
