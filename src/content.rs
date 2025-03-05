@@ -176,22 +176,22 @@ impl Content {
     pub fn position_to_offset(&self, position: EditorPosition) -> usize {
         let lines = self.lines();
         let previous_lines = lines.iter().take(position.y);
-        let mut offset = 0;
+        let mut offset: isize = 0;
 
         for line in previous_lines {
-            offset += line.length();
+            offset += line.length() as isize;
             offset += 1;
         }
 
         let line = lines.index(position.y);
 
         if let LineType::HeadlineStart(level) = line.kind {
-            offset += level + 1;
+            offset += level as isize + 1;
         }
 
-        offset += position.x as usize;
+        offset += position.x;
 
-        return offset;
+        return offset as usize;
     }
 
     pub fn offset_to_position(&self, offset: usize) -> EditorPosition {

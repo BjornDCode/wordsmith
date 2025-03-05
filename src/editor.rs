@@ -224,7 +224,7 @@ enum SelectionDirection {
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        let edit_location = EditLocation::Cursor(Cursor::new(3, 2, 2));
+        let edit_location = EditLocation::Cursor(Cursor::new(0, 1, 1));
         // let edit_location = EditLocation::Selection(Selection::new(
         //     EditorPosition::new(0, -2),
         //     EditorPosition::new(5, 20),
@@ -537,11 +537,26 @@ impl Editor {
                     return;
                 }
 
-                let position = self.left_position(cursor.position.clone());
-                let range = position.clone()..cursor.position;
+                let line = self.content.line(cursor.position.y);
 
-                self.replace_range(range, "".into(), context);
-                self.move_to(position.clone(), position.x, context);
+                match (line.clone().kind, cursor.position.x) {
+                    (LineType::HeadlineStart(level), 0) => {
+                        let position = EditorPosition::new(cursor.position.y, line.beginning());
+                        let range = position.clone()..cursor.position;
+
+                        self.replace_range(range, "".into(), context);
+                    }
+                    _ => {
+                        let position = self.left_position(cursor.position.clone());
+                        let range = position.clone()..cursor.position;
+
+                        self.replace_range(range, "".into(), context);
+
+                        if position.x >= 0 {
+                            self.move_to(position.clone(), position.x, context);
+                        }
+                    }
+                };
             }
             EditLocation::Selection(selection) => todo!(),
         }
