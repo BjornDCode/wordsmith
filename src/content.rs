@@ -163,6 +163,10 @@ impl Content {
         return lines;
     }
 
+    pub fn replace(&mut self, range: Range<usize>, replacement: String) {
+        self.wrapped.replace(range, replacement);
+    }
+
     pub fn line(&self, index: usize) -> Line {
         let lines = self.lines();
 
@@ -170,18 +174,21 @@ impl Content {
     }
 
     pub fn position_to_offset(&self, position: EditorPosition) -> usize {
-        let (lines, wrap_points) = self.text().lines_and_wrap_points();
+        let lines = self.lines();
         let previous_lines = lines.iter().take(position.y);
         let mut offset = 0;
 
         for line in previous_lines {
-            offset += line.len();
-            offset += 1; // Newline
+            offset += line.length();
+            offset += 1;
         }
 
-        let included_wrap_points = wrap_points.iter().filter(|x| **x < offset).count();
+        let line = lines.index(position.y);
 
-        offset -= included_wrap_points;
+        if let LineType::HeadlineStart(level) = line.kind {
+            offset += level + 1;
+        }
+
         offset += position.x as usize;
 
         return offset;

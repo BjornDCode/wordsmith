@@ -57,7 +57,8 @@ actions!(
         SelectEndOfLine,
         SelectBeginningOfWord,
         SelectEndOfWord,
-        RemoveSelection
+        RemoveSelection,
+        Backspace,
     ]
 );
 impl_actions!(app, [SetMode]);
@@ -108,6 +109,7 @@ fn main() {
                 KeyBinding::new("alt-shift-left", SelectBeginningOfWord, "editor".into()),
                 KeyBinding::new("alt-shift-right", SelectEndOfWord, "editor".into()),
                 KeyBinding::new("escape", RemoveSelection, "editor".into()),
+                KeyBinding::new("backspace", Backspace, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());

@@ -1,5 +1,5 @@
-use std::cmp::Ordering;
 use std::ops::Index;
+use std::{cmp::Ordering, ops::Range};
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
@@ -12,8 +12,8 @@ use gpui::{
 use crate::{
     content::{Content, Line, LineType},
     text::WrappedText,
-    MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown, MoveEndOfFile,
-    MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
+    Backspace, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown,
+    MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
     SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord, SelectDown,
     SelectEndOfFile, SelectEndOfLine, SelectEndOfWord, SelectLeft, SelectRight, SelectUp,
     COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_700, COLOR_GRAY_800,
@@ -224,7 +224,7 @@ enum SelectionDirection {
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        let edit_location = EditLocation::Cursor(Cursor::new(4, 20, 20));
+        let edit_location = EditLocation::Cursor(Cursor::new(3, 2, 2));
         // let edit_location = EditLocation::Selection(Selection::new(
         //     EditorPosition::new(0, -2),
         //     EditorPosition::new(5, 20),
@@ -530,6 +530,23 @@ impl Editor {
     //     }
     // }
 
+    fn backspace(&mut self, _: &Backspace, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                if cursor.position == self.beginning_of_file_position() {
+                    return;
+                }
+
+                let position = self.left_position(cursor.position.clone());
+                let range = position.clone()..cursor.position;
+
+                self.replace_range(range, "".into(), context);
+                self.move_to(position.clone(), position.x, context);
+            }
+            EditLocation::Selection(selection) => todo!(),
+        }
+    }
+
     fn move_to(
         &mut self,
         position: EditorPosition,
@@ -564,6 +581,20 @@ impl Editor {
 
     //     self.select(start, end, context);
     // }
+
+    fn replace_range(
+        &mut self,
+        range: Range<EditorPosition>,
+        replacement: String,
+        context: &mut ViewContext<Self>,
+    ) {
+        let start_offset = self.content.position_to_offset(range.start);
+        let end_offset = self.content.position_to_offset(range.end);
+
+        self.content.replace(start_offset..end_offset, replacement);
+
+        context.notify();
+    }
 
     fn left_position(&self, point: EditorPosition) -> EditorPosition {
         let line = self.content.line(point.y);
@@ -652,101 +683,101 @@ impl Editor {
     fn beginning_of_word_position(&self, point: EditorPosition) -> EditorPosition {
         let line = self.content.line(point.y);
         let line_offset = (point.x - line.beginning()) as usize;
-        
+
         // Handle edge case: at beginning of file
         if point.y == 0 && point.x <= line.beginning() {
             return self.beginning_of_file_position();
         }
-        
+
         // First attempt: find previous word boundary in current line
         if point.x > line.beginning() && line_offset <= line.text.len() {
             let wrapped_text = WrappedText::new(line.text.clone());
             let word_boundary = wrapped_text.previous_word_boundary(line_offset);
             let new_x = line.beginning() + (word_boundary as isize);
-            
+
             // Use this position if it's actually before the current position
             if new_x < point.x {
                 return EditorPosition::new(point.y, new_x);
             }
         }
-        
+
         // If we're here, we need to look at previous line
-        
+
         // Handle edge case: already at first line
         if point.y == 0 {
             return self.beginning_of_file_position();
         }
-        
+
         // Get previous line
         let previous_line = self.content.line(point.y - 1);
-        
+
         // Handle edge case: previous line is empty
         if previous_line.text.trim().is_empty() {
             return EditorPosition::new(point.y - 1, previous_line.beginning());
         }
-        
+
         // Find last word in previous line
         let wrapped_text = WrappedText::new(previous_line.text.clone());
         let last_valid_offset = previous_line.text.len();
         let word_boundary = wrapped_text.previous_word_boundary(last_valid_offset);
         let new_x = previous_line.beginning() + (word_boundary as isize);
-        
+
         return EditorPosition::new(point.y - 1, new_x);
     }
 
     fn end_of_word_position(&self, point: EditorPosition) -> EditorPosition {
         let line = self.content.line(point.y);
         let line_offset = (point.x - line.beginning()) as usize;
-        
+
         // First attempt: find next word boundary in current line
         if line_offset < line.text.len() {
             let wrapped_text = WrappedText::new(line.text.clone());
-            
+
             if let Some(word_boundary) = wrapped_text.next_word_boundary(line_offset) {
                 let new_x = line.beginning() + (word_boundary as isize);
-                
+
                 // Use this position if it doesn't exceed the end of the line
                 if new_x <= line.end() {
                     return EditorPosition::new(point.y, new_x);
                 }
             }
         }
-        
+
         // If we're here, we need to look at the next line
-        
+
         // Handle edge case: already at last line
         if point.y >= self.content.lines().len() - 1 {
             return EditorPosition::new(point.y, line.end());
         }
-        
+
         // Get next line
         let next_line = self.content.line(point.y + 1);
-        
+
         // Handle edge case: next line is empty
         if next_line.text.trim().is_empty() {
             return EditorPosition::new(point.y + 1, next_line.beginning());
         }
-        
+
         // Find first non-whitespace character in next line
         let mut start_offset = 0;
-        while start_offset < next_line.text.len() 
-              && next_line.text.chars()
-                           .nth(start_offset)
-                           .unwrap_or(' ')
-                           .is_whitespace() {
+        while start_offset < next_line.text.len()
+            && next_line
+                .text
+                .chars()
+                .nth(start_offset)
+                .unwrap_or(' ')
+                .is_whitespace()
+        {
             start_offset += 1;
         }
-        
+
         // If we reached the end of the next line
         if start_offset >= next_line.text.len() {
             return EditorPosition::new(point.y + 1, next_line.beginning());
         }
-        
+
         // Go to the first word in the next line
-        return EditorPosition::new(
-            point.y + 1, 
-            next_line.beginning() + start_offset as isize
-        );
+        return EditorPosition::new(point.y + 1, next_line.beginning() + start_offset as isize);
     }
 }
 
@@ -782,6 +813,7 @@ impl gpui::Render for Editor {
             // .on_action(context.listener(Self::select_beginning_of_word))
             // .on_action(context.listener(Self::select_end_of_word))
             // .on_action(context.listener(Self::remove_selection))
+            .on_action(context.listener(Self::backspace))
             .pt_8()
             .group("editor-container")
             .bg(rgb(COLOR_PINK))

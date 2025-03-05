@@ -1,4 +1,4 @@
-use std::ops::Index;
+use std::ops::{Index, Range};
 
 use crate::editor::CHARACTER_COUNT_PER_LINE;
 
@@ -14,6 +14,10 @@ impl RawText {
 
     pub fn to_string(&self) -> String {
         return self.text.clone();
+    }
+
+    pub fn replace(&mut self, range: Range<usize>, replacement: String) {
+        self.text.replace_range(range, &replacement);
     }
 }
 
@@ -49,14 +53,21 @@ impl TrimmedText {
 
 #[derive(Debug, Clone)]
 pub struct WrappedText {
-    text: TrimmedText,
+    text: RawText,
 }
 
 impl WrappedText {
     pub fn new(text: String) -> WrappedText {
         WrappedText {
-            text: TrimmedText::new(text),
+            text: RawText::new(text),
         }
+    }
+
+    pub fn replace(&mut self, range: Range<usize>, replacement: String) {
+        let start_offset = self.resolve_offset(range.start);
+        let end_offset = self.resolve_offset(range.end);
+
+        self.text.replace(start_offset..end_offset, replacement);
     }
 
     pub fn line_length(&self) -> usize {
@@ -111,97 +122,97 @@ impl WrappedText {
         let (_, wrap_points) = self.to_string_with_wrap_points();
         let wrap_points_before_offset = wrap_points.iter().filter(|point| **point < offset).count();
 
-        return offset + wrap_points_before_offset;
+        return offset - wrap_points_before_offset;
     }
 
     pub fn previous_word_boundary(&self, offset: usize) -> usize {
         let content = self.text.to_string();
         let chars: Vec<char> = content.chars().collect();
-        
+
         // Handle edge cases
         if offset == 0 {
             return 0;
         }
-        
+
         if offset >= chars.len() {
             return self.previous_word_boundary(chars.len() - 1);
         }
-        
+
         let mut cursor = offset;
-        
+
         // Case 1: We're at the beginning of a word already
-        let at_word_beginning = offset < chars.len() 
+        let at_word_beginning = offset < chars.len()
             && !chars[offset].is_whitespace()
             && (offset == 0 || chars[offset - 1].is_whitespace());
-            
+
         if at_word_beginning {
             // Skip back through current word
             while cursor > 0 && !chars[cursor - 1].is_whitespace() {
                 cursor -= 1;
             }
-            
+
             if cursor == 0 {
                 return 0;
             }
-            
+
             // Skip back through whitespace
             while cursor > 0 && chars[cursor - 1].is_whitespace() {
                 cursor -= 1;
             }
-            
+
             // Skip back through previous word
             while cursor > 0 && !chars[cursor - 1].is_whitespace() {
                 cursor -= 1;
             }
-            
+
             return cursor;
         }
-        
+
         // Case 2: We're in the middle of a word or at whitespace
-        
+
         // Skip back through whitespace
         while cursor > 0 && chars[cursor - 1].is_whitespace() {
             cursor -= 1;
         }
-        
+
         // Find the beginning of the current word
         while cursor > 0 && !chars[cursor - 1].is_whitespace() {
             cursor -= 1;
         }
-        
+
         return cursor;
     }
 
     pub fn next_word_boundary(&self, offset: usize) -> Option<usize> {
         let content = self.text.to_string();
         let chars: Vec<char> = content.chars().collect();
-        
+
         // Handle edge case
         if offset >= chars.len() {
             return None;
         }
-        
+
         let mut cursor = offset;
-        
+
         // Skip any whitespace after current position
         while cursor < chars.len() && chars[cursor].is_whitespace() {
             cursor += 1;
         }
-        
+
         // If we reached the end after skipping whitespace
         if cursor >= chars.len() {
             return None;
         }
-        
+
         // Find end of current word
         while cursor < chars.len() && !chars[cursor].is_whitespace() {
             cursor += 1;
         }
-        
+
         if cursor == offset {
             return None;
         }
-        
+
         return Some(cursor);
     }
 
