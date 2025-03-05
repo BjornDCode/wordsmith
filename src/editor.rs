@@ -775,7 +775,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::backspace))
             .pt_8()
             .group("editor-container")
-            .bg(rgb(COLOR_PINK))
+            // .bg(rgb(COLOR_PINK))
             .child(
                 div()
                     .bg(rgb(COLOR_PINK))
@@ -926,7 +926,7 @@ impl Element for EditorElement {
                     let start = if index == line_range.start {
                         smallest.x
                     } else {
-                        0
+                        std::cmp::min(0, smallest.x)
                     };
                     let end = if index == line_range.end - 1 {
                         largest.x
