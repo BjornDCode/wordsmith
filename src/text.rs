@@ -115,57 +115,98 @@ impl WrappedText {
     }
 
     pub fn previous_word_boundary(&self, offset: usize) -> usize {
+        // Use the raw (non-wrapped) content for word boundary detection
+        let content = self.text.to_string();
+
         if offset == 0 {
             return 0;
         }
 
-        let resolved_offset = self.resolve_offset(offset);
-
-        let content = self.to_string();
-        let slice = &content[..resolved_offset];
-
-        let initial_whitespaces = slice
-            .chars()
-            .rev()
-            .take_while(|character| character.is_whitespace())
-            .count();
-
-        let index = slice
-            .chars()
-            .rev()
-            .skip(initial_whitespaces)
-            .position(|character| character.is_whitespace());
-
-        match index {
-            Some(index) => offset - index - initial_whitespaces,
-            None => 0,
+        let chars_vec: Vec<char> = content.chars().collect();
+        if offset >= chars_vec.len() {
+            // If we're at or beyond the end, start from the actual end
+            return self.previous_word_boundary(chars_vec.len() - 1);
         }
+
+        // If we're at the beginning of a word already
+        if offset < chars_vec.len()
+            && !chars_vec[offset].is_whitespace()
+            && (offset == 0 || chars_vec[offset - 1].is_whitespace())
+        {
+            // We're already at the beginning of a word, so we need to find the previous word
+
+            // First, skip back to the previous whitespace
+            let mut cursor = offset;
+            // Skip any non-whitespace (the current word)
+            while cursor > 0 && !chars_vec[cursor - 1].is_whitespace() {
+                cursor -= 1;
+            }
+
+            // If we reached the beginning of the text, just return it
+            if cursor == 0 {
+                return 0;
+            }
+
+            // Now skip any whitespace
+            while cursor > 0 && chars_vec[cursor - 1].is_whitespace() {
+                cursor -= 1;
+            }
+
+            // Find beginning of previous word
+            while cursor > 0 && !chars_vec[cursor - 1].is_whitespace() {
+                cursor -= 1;
+            }
+
+            return cursor;
+        }
+
+        // We're in the middle of a word or at whitespace
+
+        // If we're on whitespace, skip back to non-whitespace
+        let mut cursor = offset;
+        while cursor > 0 && chars_vec[cursor - 1].is_whitespace() {
+            cursor -= 1;
+        }
+
+        // Now find the beginning of the current word
+        while cursor > 0 && !chars_vec[cursor - 1].is_whitespace() {
+            cursor -= 1;
+        }
+
+        return cursor;
     }
 
     pub fn next_word_boundary(&self, offset: usize) -> Option<usize> {
-        if offset == self.length() - 1 {
+        // Use the raw content to find word boundaries correctly
+        // This avoids issues with soft-wrapped lines
+        let content = self.text.to_string();
+        let chars_vec: Vec<char> = content.chars().collect();
+
+        if offset >= chars_vec.len() {
             return None;
         }
 
-        let resolved_offset = self.resolve_offset(offset);
-
-        let content = self.to_string();
-        let slice = &content[resolved_offset..];
-
-        let initial_whitespaces = slice
-            .chars()
-            .take_while(|character| character.is_whitespace())
-            .count();
-
-        let index = slice
-            .chars()
-            .skip(initial_whitespaces)
-            .position(|character| character.is_whitespace());
-
-        match index {
-            Some(index) => Some(offset + index + initial_whitespaces),
-            None => Some(self.length() - 1),
+        // Skip any whitespace after current position
+        let mut cursor = offset;
+        while cursor < chars_vec.len() && chars_vec[cursor].is_whitespace() {
+            cursor += 1;
         }
+
+        // If we're at the end of the content after skipping whitespace
+        if cursor >= chars_vec.len() {
+            return None;
+        }
+
+        // Find end of current word
+        while cursor < chars_vec.len() && !chars_vec[cursor].is_whitespace() {
+            cursor += 1;
+        }
+
+        if cursor == offset {
+            return None;
+        }
+
+        return Some(cursor);
     }
 
     fn to_string_with_wrap_points(&self) -> (String, Vec<usize>) {
