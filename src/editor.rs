@@ -224,11 +224,11 @@ enum SelectionDirection {
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        // let edit_location = EditLocation::Cursor(Cursor::new(0, 1, 1));
-        let edit_location = EditLocation::Selection(Selection::new(
-            EditorPosition::new(0, 2),
-            EditorPosition::new(5, 20),
-        ));
+        let edit_location = EditLocation::Cursor(Cursor::new(0, 1, 1));
+        // let edit_location = EditLocation::Selection(Selection::new(
+        //     EditorPosition::new(0, 2),
+        //     EditorPosition::new(5, 20),
+        // ));
 
         return Editor {
             focus_handle,
@@ -358,63 +358,75 @@ impl Editor {
         self.move_to(position.clone(), position.x, context);
     }
 
-    // fn select_left(&mut self, _: &SelectLeft, context: &mut ViewContext<Self>) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => self.select(
-    //             cursor.position.clone(),
-    //             self.left_position(cursor.position),
-    //             context,
-    //         ),
-    //         EditLocation::Selection(selection) => {
-    //             self.select(selection.start, self.left_position(selection.end), context)
-    //         }
-    //     }
-    // }
+    fn select_left(&mut self, _: &SelectLeft, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.left_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => {
+                self.select(selection.start, self.left_position(selection.end), context)
+            }
+        }
+    }
 
-    // fn select_right(&mut self, _: &SelectRight, context: &mut ViewContext<Self>) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => self.select(
-    //             cursor.position.clone(),
-    //             self.right_position(cursor.position),
-    //             context,
-    //         ),
-    //         EditLocation::Selection(selection) => {
-    //             self.select(selection.start, self.right_position(selection.end), context)
-    //         }
-    //     }
-    // }
+    fn select_right(&mut self, _: &SelectRight, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.right_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => {
+                self.select(selection.start, self.right_position(selection.end), context)
+            }
+        }
+    }
 
-    // fn select_up(&mut self, _: &SelectUp, context: &mut ViewContext<Self>) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => {
-    //             self.select_to(self.up_position(cursor.position), context);
-    //         }
-    //         EditLocation::Selection(selection) => match selection.direction() {
-    //             SelectionDirection::Backwards => {
-    //                 self.select_to(self.up_position(selection.end), context)
-    //             }
-    //             SelectionDirection::Forwards => {
-    //                 self.select(selection.start, self.up_position(selection.end), context)
-    //             }
-    //         },
-    //     };
-    // }
+    fn select_up(&mut self, _: &SelectUp, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(
+                    self.up_position(cursor.position.clone(), cursor.position.x),
+                    context,
+                );
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => self.select_to(
+                    self.up_position(selection.end.clone(), selection.start.x),
+                    context,
+                ),
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.up_position(selection.end.clone(), selection.end.x),
+                    context,
+                ),
+            },
+        };
+    }
 
-    // fn select_down(&mut self, _: &SelectDown, context: &mut ViewContext<Self>) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => {
-    //             self.select_to(self.down_position(cursor.position), context);
-    //         }
-    //         EditLocation::Selection(selection) => match selection.direction() {
-    //             SelectionDirection::Backwards => {
-    //                 self.select_to(self.down_position(selection.end), context)
-    //             }
-    //             SelectionDirection::Forwards => {
-    //                 self.select(selection.start, self.down_position(selection.end), context)
-    //             }
-    //         },
-    //     };
-    // }
+    fn select_down(&mut self, _: &SelectDown, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(
+                    self.down_position(cursor.position.clone(), cursor.position.x),
+                    context,
+                );
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => self.select_to(
+                    self.down_position(selection.end.clone(), selection.end.x),
+                    context,
+                ),
+                SelectionDirection::Forwards => self.select(
+                    selection.start.clone(),
+                    self.down_position(selection.end.clone(), selection.start.x),
+                    context,
+                ),
+            },
+        };
+    }
 
     // fn select_beginning_of_file(
     //     &mut self,
@@ -583,26 +595,29 @@ impl Editor {
         context.notify();
     }
 
-    // fn select(&mut self, start: CursorPoint, end: CursorPoint, context: &mut ViewContext<Self>) {
-    //     if start == end {
-    //         let preferred_x = self.preferred_x(start.clone());
+    fn select(
+        &mut self,
+        start: EditorPosition,
+        end: EditorPosition,
+        context: &mut ViewContext<Self>,
+    ) {
+        if start == end {
+            self.move_to(start.clone(), start.x, context);
+        } else {
+            self.edit_location = EditLocation::Selection(Selection::new(start, end));
+        }
 
-    //         self.move_to(start, preferred_x, context);
-    //     } else {
-    //         self.edit_location = EditLocation::Selection(Selection { start, end });
-    //     }
+        context.notify();
+    }
 
-    //     context.notify();
-    // }
+    fn select_to(&mut self, end: EditorPosition, context: &mut ViewContext<Self>) {
+        let start = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.start,
+        };
 
-    // fn select_to(&mut self, end: CursorPoint, context: &mut ViewContext<Self>) {
-    //     let start = match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => cursor.position,
-    //         EditLocation::Selection(selection) => selection.start,
-    //     };
-
-    //     self.select(start, end, context);
-    // }
+        self.select(start, end, context);
+    }
 
     fn replace_range(
         &mut self,
@@ -824,10 +839,10 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::move_end_of_line))
             .on_action(context.listener(Self::move_beginning_of_word))
             .on_action(context.listener(Self::move_end_of_word))
-            // .on_action(context.listener(Self::select_left))
-            // .on_action(context.listener(Self::select_right))
-            // .on_action(context.listener(Self::select_up))
-            // .on_action(context.listener(Self::select_down))
+            .on_action(context.listener(Self::select_left))
+            .on_action(context.listener(Self::select_right))
+            .on_action(context.listener(Self::select_up))
+            .on_action(context.listener(Self::select_down))
             // .on_action(context.listener(Self::select_beginning_of_file))
             // .on_action(context.listener(Self::select_end_of_file))
             // .on_action(context.listener(Self::select_beginning_of_line))
