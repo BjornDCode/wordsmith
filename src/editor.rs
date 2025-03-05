@@ -494,45 +494,45 @@ impl Editor {
         };
     }
 
-    // fn select_beginning_of_word(
-    //     &mut self,
-    //     _: &SelectBeginningOfWord,
-    //     context: &mut ViewContext<Self>,
-    // ) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => {
-    //             self.select_to(self.beginning_of_word_position(cursor.position), context);
-    //         }
-    //         EditLocation::Selection(selection) => match selection.direction() {
-    //             SelectionDirection::Backwards => {
-    //                 self.select_to(self.beginning_of_word_position(selection.end), context)
-    //             }
-    //             SelectionDirection::Forwards => self.select(
-    //                 selection.start,
-    //                 self.beginning_of_word_position(selection.end),
-    //                 context,
-    //             ),
-    //         },
-    //     };
-    // }
+    fn select_beginning_of_word(
+        &mut self,
+        _: &SelectBeginningOfWord,
+        context: &mut ViewContext<Self>,
+    ) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.beginning_of_word_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.beginning_of_word_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.beginning_of_word_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
 
-    // fn select_end_of_word(&mut self, _: &SelectEndOfWord, context: &mut ViewContext<Self>) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => {
-    //             self.select_to(self.end_of_word_position(cursor.position), context);
-    //         }
-    //         EditLocation::Selection(selection) => match selection.direction() {
-    //             SelectionDirection::Backwards => {
-    //                 self.select_to(self.end_of_word_position(selection.end), context)
-    //             }
-    //             SelectionDirection::Forwards => self.select(
-    //                 selection.start,
-    //                 self.end_of_word_position(selection.end),
-    //                 context,
-    //             ),
-    //         },
-    //     };
-    // }
+    fn select_end_of_word(&mut self, _: &SelectEndOfWord, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => {
+                self.select_to(self.end_of_word_position(cursor.position), context);
+            }
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.end_of_word_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.end_of_word_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
 
     fn remove_selection(&mut self, _: &RemoveSelection, context: &mut ViewContext<Self>) {
         if let EditLocation::Selection(selection) = self.edit_location.clone() {
@@ -845,8 +845,8 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::select_end_of_file))
             .on_action(context.listener(Self::select_beginning_of_line))
             .on_action(context.listener(Self::select_end_of_line))
-            // .on_action(context.listener(Self::select_beginning_of_word))
-            // .on_action(context.listener(Self::select_end_of_word))
+            .on_action(context.listener(Self::select_beginning_of_word))
+            .on_action(context.listener(Self::select_end_of_word))
             .on_action(context.listener(Self::remove_selection))
             .on_action(context.listener(Self::backspace))
             .pt_8()
