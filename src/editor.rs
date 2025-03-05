@@ -428,71 +428,71 @@ impl Editor {
         };
     }
 
-    // fn select_beginning_of_file(
-    //     &mut self,
-    //     _: &SelectBeginningOfFile,
-    //     context: &mut ViewContext<Self>,
-    // ) {
-    //     let starting_point = match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => cursor.position,
-    //         EditLocation::Selection(selection) => selection.start,
-    //     };
+    fn select_beginning_of_file(
+        &mut self,
+        _: &SelectBeginningOfFile,
+        context: &mut ViewContext<Self>,
+    ) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.start,
+        };
 
-    //     self.select(starting_point, self.beginning_of_file_position(), context);
-    // }
+        self.select(starting_point, self.beginning_of_file_position(), context);
+    }
 
-    // fn select_end_of_file(&mut self, _: &SelectEndOfFile, context: &mut ViewContext<Self>) {
-    //     let starting_point = match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => cursor.position,
-    //         EditLocation::Selection(selection) => selection.start,
-    //     };
+    fn select_end_of_file(&mut self, _: &SelectEndOfFile, context: &mut ViewContext<Self>) {
+        let starting_point = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position,
+            EditLocation::Selection(selection) => selection.start,
+        };
 
-    //     self.select(starting_point, self.end_of_file_position(), context);
-    // }
+        self.select(starting_point, self.end_of_file_position(), context);
+    }
 
-    // fn select_beginning_of_line(
-    //     &mut self,
-    //     _: &SelectBeginningOfLine,
-    //     context: &mut ViewContext<Self>,
-    // ) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => self.select(
-    //             cursor.position.clone(),
-    //             self.beginning_of_line_position(cursor.position),
-    //             context,
-    //         ),
-    //         EditLocation::Selection(selection) => match selection.direction() {
-    //             SelectionDirection::Backwards => {
-    //                 self.select_to(self.beginning_of_line_position(selection.end), context)
-    //             }
-    //             SelectionDirection::Forwards => self.select(
-    //                 selection.start,
-    //                 self.beginning_of_line_position(selection.end),
-    //                 context,
-    //             ),
-    //         },
-    //     };
-    // }
+    fn select_beginning_of_line(
+        &mut self,
+        _: &SelectBeginningOfLine,
+        context: &mut ViewContext<Self>,
+    ) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.beginning_of_line_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.beginning_of_line_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.beginning_of_line_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
 
-    // fn select_end_of_line(&mut self, _: &SelectEndOfLine, context: &mut ViewContext<Self>) {
-    //     match self.edit_location.clone() {
-    //         EditLocation::Cursor(cursor) => self.select(
-    //             cursor.position.clone(),
-    //             self.end_of_line_position(cursor.position),
-    //             context,
-    //         ),
-    //         EditLocation::Selection(selection) => match selection.direction() {
-    //             SelectionDirection::Backwards => {
-    //                 self.select_to(self.end_of_line_position(selection.end), context)
-    //             }
-    //             SelectionDirection::Forwards => self.select(
-    //                 selection.start,
-    //                 self.end_of_line_position(selection.end),
-    //                 context,
-    //             ),
-    //         },
-    //     };
-    // }
+    fn select_end_of_line(&mut self, _: &SelectEndOfLine, context: &mut ViewContext<Self>) {
+        match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => self.select(
+                cursor.position.clone(),
+                self.end_of_line_position(cursor.position),
+                context,
+            ),
+            EditLocation::Selection(selection) => match selection.direction() {
+                SelectionDirection::Backwards => {
+                    self.select_to(self.end_of_line_position(selection.end), context)
+                }
+                SelectionDirection::Forwards => self.select(
+                    selection.start,
+                    self.end_of_line_position(selection.end),
+                    context,
+                ),
+            },
+        };
+    }
 
     // fn select_beginning_of_word(
     //     &mut self,
@@ -534,13 +534,11 @@ impl Editor {
     //     };
     // }
 
-    // fn remove_selection(&mut self, _: &RemoveSelection, context: &mut ViewContext<Self>) {
-    //     if let EditLocation::Selection(selection) = self.edit_location.clone() {
-    //         let preferred_x = self.preferred_x(selection.start.clone());
-
-    //         self.move_to(selection.start, preferred_x, context);
-    //     }
-    // }
+    fn remove_selection(&mut self, _: &RemoveSelection, context: &mut ViewContext<Self>) {
+        if let EditLocation::Selection(selection) = self.edit_location.clone() {
+            self.move_to(selection.start.clone(), selection.start.x, context);
+        }
+    }
 
     fn backspace(&mut self, _: &Backspace, context: &mut ViewContext<Self>) {
         match self.edit_location.clone() {
@@ -843,13 +841,13 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::select_right))
             .on_action(context.listener(Self::select_up))
             .on_action(context.listener(Self::select_down))
-            // .on_action(context.listener(Self::select_beginning_of_file))
-            // .on_action(context.listener(Self::select_end_of_file))
-            // .on_action(context.listener(Self::select_beginning_of_line))
-            // .on_action(context.listener(Self::select_end_of_line))
+            .on_action(context.listener(Self::select_beginning_of_file))
+            .on_action(context.listener(Self::select_end_of_file))
+            .on_action(context.listener(Self::select_beginning_of_line))
+            .on_action(context.listener(Self::select_end_of_line))
             // .on_action(context.listener(Self::select_beginning_of_word))
             // .on_action(context.listener(Self::select_end_of_word))
-            // .on_action(context.listener(Self::remove_selection))
+            .on_action(context.listener(Self::remove_selection))
             .on_action(context.listener(Self::backspace))
             .pt_8()
             .group("editor-container")
