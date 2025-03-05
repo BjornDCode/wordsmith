@@ -115,97 +115,93 @@ impl WrappedText {
     }
 
     pub fn previous_word_boundary(&self, offset: usize) -> usize {
-        // Use the raw (non-wrapped) content for word boundary detection
         let content = self.text.to_string();
-
+        let chars: Vec<char> = content.chars().collect();
+        
+        // Handle edge cases
         if offset == 0 {
             return 0;
         }
-
-        let chars_vec: Vec<char> = content.chars().collect();
-        if offset >= chars_vec.len() {
-            // If we're at or beyond the end, start from the actual end
-            return self.previous_word_boundary(chars_vec.len() - 1);
+        
+        if offset >= chars.len() {
+            return self.previous_word_boundary(chars.len() - 1);
         }
-
-        // If we're at the beginning of a word already
-        if offset < chars_vec.len()
-            && !chars_vec[offset].is_whitespace()
-            && (offset == 0 || chars_vec[offset - 1].is_whitespace())
-        {
-            // We're already at the beginning of a word, so we need to find the previous word
-
-            // First, skip back to the previous whitespace
-            let mut cursor = offset;
-            // Skip any non-whitespace (the current word)
-            while cursor > 0 && !chars_vec[cursor - 1].is_whitespace() {
+        
+        let mut cursor = offset;
+        
+        // Case 1: We're at the beginning of a word already
+        let at_word_beginning = offset < chars.len() 
+            && !chars[offset].is_whitespace()
+            && (offset == 0 || chars[offset - 1].is_whitespace());
+            
+        if at_word_beginning {
+            // Skip back through current word
+            while cursor > 0 && !chars[cursor - 1].is_whitespace() {
                 cursor -= 1;
             }
-
-            // If we reached the beginning of the text, just return it
+            
             if cursor == 0 {
                 return 0;
             }
-
-            // Now skip any whitespace
-            while cursor > 0 && chars_vec[cursor - 1].is_whitespace() {
+            
+            // Skip back through whitespace
+            while cursor > 0 && chars[cursor - 1].is_whitespace() {
                 cursor -= 1;
             }
-
-            // Find beginning of previous word
-            while cursor > 0 && !chars_vec[cursor - 1].is_whitespace() {
+            
+            // Skip back through previous word
+            while cursor > 0 && !chars[cursor - 1].is_whitespace() {
                 cursor -= 1;
             }
-
+            
             return cursor;
         }
-
-        // We're in the middle of a word or at whitespace
-
-        // If we're on whitespace, skip back to non-whitespace
-        let mut cursor = offset;
-        while cursor > 0 && chars_vec[cursor - 1].is_whitespace() {
+        
+        // Case 2: We're in the middle of a word or at whitespace
+        
+        // Skip back through whitespace
+        while cursor > 0 && chars[cursor - 1].is_whitespace() {
             cursor -= 1;
         }
-
-        // Now find the beginning of the current word
-        while cursor > 0 && !chars_vec[cursor - 1].is_whitespace() {
+        
+        // Find the beginning of the current word
+        while cursor > 0 && !chars[cursor - 1].is_whitespace() {
             cursor -= 1;
         }
-
+        
         return cursor;
     }
 
     pub fn next_word_boundary(&self, offset: usize) -> Option<usize> {
-        // Use the raw content to find word boundaries correctly
-        // This avoids issues with soft-wrapped lines
         let content = self.text.to_string();
-        let chars_vec: Vec<char> = content.chars().collect();
-
-        if offset >= chars_vec.len() {
+        let chars: Vec<char> = content.chars().collect();
+        
+        // Handle edge case
+        if offset >= chars.len() {
             return None;
         }
-
-        // Skip any whitespace after current position
+        
         let mut cursor = offset;
-        while cursor < chars_vec.len() && chars_vec[cursor].is_whitespace() {
+        
+        // Skip any whitespace after current position
+        while cursor < chars.len() && chars[cursor].is_whitespace() {
             cursor += 1;
         }
-
-        // If we're at the end of the content after skipping whitespace
-        if cursor >= chars_vec.len() {
+        
+        // If we reached the end after skipping whitespace
+        if cursor >= chars.len() {
             return None;
         }
-
+        
         // Find end of current word
-        while cursor < chars_vec.len() && !chars_vec[cursor].is_whitespace() {
+        while cursor < chars.len() && !chars[cursor].is_whitespace() {
             cursor += 1;
         }
-
+        
         if cursor == offset {
             return None;
         }
-
+        
         return Some(cursor);
     }
 

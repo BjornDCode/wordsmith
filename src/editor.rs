@@ -650,115 +650,103 @@ impl Editor {
     }
 
     fn beginning_of_word_position(&self, point: EditorPosition) -> EditorPosition {
-        // For each position, first try to find a boundary in the current line
         let line = self.content.line(point.y);
         let line_offset = (point.x - line.beginning()) as usize;
-
-        // No need to go to previous word if we're already at the beginning of file
+        
+        // Handle edge case: at beginning of file
         if point.y == 0 && point.x <= line.beginning() {
             return self.beginning_of_file_position();
         }
-
-        // If the cursor is in the middle of the current line, try to find the previous word boundary
-        if point.x > line.beginning() {
+        
+        // First attempt: find previous word boundary in current line
+        if point.x > line.beginning() && line_offset <= line.text.len() {
             let wrapped_text = WrappedText::new(line.text.clone());
-
-            // Find the previous word boundary in the current line
-            if line_offset <= line.text.len() {
-                let word_boundary = wrapped_text.previous_word_boundary(line_offset);
-                let new_x = line.beginning() + (word_boundary as isize);
-
-                // Only use this if it actually moves backward within this line
-                if new_x < point.x {
-                    return EditorPosition::new(point.y, new_x);
-                }
+            let word_boundary = wrapped_text.previous_word_boundary(line_offset);
+            let new_x = line.beginning() + (word_boundary as isize);
+            
+            // Use this position if it's actually before the current position
+            if new_x < point.x {
+                return EditorPosition::new(point.y, new_x);
             }
         }
-
-        // If we're here, it means:
-        // 1. We're at the beginning of a line, or
-        // 2. There's no previous word boundary in the current line
-        // So we need to look at the previous line
-
-        // Check if we're at the first line
+        
+        // If we're here, we need to look at previous line
+        
+        // Handle edge case: already at first line
         if point.y == 0 {
             return self.beginning_of_file_position();
         }
-
-        // Get the previous line
+        
+        // Get previous line
         let previous_line = self.content.line(point.y - 1);
-
+        
+        // Handle edge case: previous line is empty
         if previous_line.text.trim().is_empty() {
-            // Previous line is empty, just go to its beginning
             return EditorPosition::new(point.y - 1, previous_line.beginning());
         }
-
-        // We need to find the last word in the previous line
+        
+        // Find last word in previous line
         let wrapped_text = WrappedText::new(previous_line.text.clone());
-
-        // Look from the very end of the previous line
         let last_valid_offset = previous_line.text.len();
         let word_boundary = wrapped_text.previous_word_boundary(last_valid_offset);
-
         let new_x = previous_line.beginning() + (word_boundary as isize);
-
+        
         return EditorPosition::new(point.y - 1, new_x);
     }
 
     fn end_of_word_position(&self, point: EditorPosition) -> EditorPosition {
         let line = self.content.line(point.y);
         let line_offset = (point.x - line.beginning()) as usize;
-
-        // Try to find the next word boundary in the current line
-        let wrapped_text = WrappedText::new(line.text.clone());
-
+        
+        // First attempt: find next word boundary in current line
         if line_offset < line.text.len() {
+            let wrapped_text = WrappedText::new(line.text.clone());
+            
             if let Some(word_boundary) = wrapped_text.next_word_boundary(line_offset) {
-                // Make sure we aren't exceeding the end of the line
                 let new_x = line.beginning() + (word_boundary as isize);
+                
+                // Use this position if it doesn't exceed the end of the line
                 if new_x <= line.end() {
                     return EditorPosition::new(point.y, new_x);
                 }
             }
         }
-
-        // If we couldn't find a next word boundary in the current line or it would exceed
-        // the end of the line, look at the next line
-        if point.y < self.content.lines().len() - 1 {
-            let next_line = self.content.line(point.y + 1);
-
-            if next_line.text.trim().is_empty() {
-                // Next line is empty, just go to its beginning
-                return EditorPosition::new(point.y + 1, next_line.beginning());
-            }
-
-            // Find the first word boundary in the next line (skip initial whitespace)
-            let wrapped_text = WrappedText::new(next_line.text.clone());
-
-            // Skip initial whitespace in the next line
-            let mut start_offset = 0;
-            while start_offset < next_line.text.len()
-                && next_line
-                    .text
-                    .chars()
-                    .nth(start_offset)
-                    .unwrap_or(' ')
-                    .is_whitespace()
-            {
-                start_offset += 1;
-            }
-
-            // If we reached the end of the line, just go to its beginning
-            if start_offset >= next_line.text.len() {
-                return EditorPosition::new(point.y + 1, next_line.beginning());
-            }
-
-            // Go to the beginning of the first word in the next line
-            return EditorPosition::new(point.y + 1, next_line.beginning() + start_offset as isize);
+        
+        // If we're here, we need to look at the next line
+        
+        // Handle edge case: already at last line
+        if point.y >= self.content.lines().len() - 1 {
+            return EditorPosition::new(point.y, line.end());
         }
-
-        // We're at the last line, just go to the end of the line
-        return EditorPosition::new(point.y, line.end());
+        
+        // Get next line
+        let next_line = self.content.line(point.y + 1);
+        
+        // Handle edge case: next line is empty
+        if next_line.text.trim().is_empty() {
+            return EditorPosition::new(point.y + 1, next_line.beginning());
+        }
+        
+        // Find first non-whitespace character in next line
+        let mut start_offset = 0;
+        while start_offset < next_line.text.len() 
+              && next_line.text.chars()
+                           .nth(start_offset)
+                           .unwrap_or(' ')
+                           .is_whitespace() {
+            start_offset += 1;
+        }
+        
+        // If we reached the end of the next line
+        if start_offset >= next_line.text.len() {
+            return EditorPosition::new(point.y + 1, next_line.beginning());
+        }
+        
+        // Go to the first word in the next line
+        return EditorPosition::new(
+            point.y + 1, 
+            next_line.beginning() + start_offset as isize
+        );
     }
 }
 
