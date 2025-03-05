@@ -13,8 +13,8 @@ use crate::{
     MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
     SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord, SelectDown,
     SelectEndOfFile, SelectEndOfLine, SelectEndOfWord, SelectLeft, SelectRight, SelectUp,
-    COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_700, COLOR_GRAY_800,
-    COLOR_PINK,
+    COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_300, COLOR_GRAY_400,
+    COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -851,6 +851,7 @@ impl Element for EditorElement {
         let content = input.content.clone();
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
+        let is_focused = input.focus_handle.is_focused(context);
 
         let mut lines: Vec<RenderedLine> = vec![];
         let raw_lines = content.lines();
@@ -907,9 +908,14 @@ impl Element for EditorElement {
                 let top =
                     bounds.top() + context.line_height() * px(cursor.position.y as f32) + px(2.);
 
+                let color = if is_focused {
+                    rgb(COLOR_BLUE_DARK)
+                } else {
+                    rgb(COLOR_GRAY_400)
+                };
                 let rectangles = vec![fill(
                     Bounds::new(point(left, top), size(px(2.), px(20.))),
-                    rgb(COLOR_BLUE_DARK),
+                    color,
                 )];
 
                 rectangles
@@ -941,8 +947,13 @@ impl Element for EditorElement {
                     let top = bounds.top() + px(index as f32) * context.line_height();
                     let width = px((end - start) as f32) * CHARACTER_WIDTH + px(2.);
 
+                    let color = if is_focused {
+                        rgb(COLOR_BLUE_MEDIUM)
+                    } else {
+                        rgb(COLOR_GRAY_300)
+                    };
                     let bounds = Bounds::new(point(left, top), size(width, context.line_height()));
-                    let rectangle = fill(bounds, rgb(COLOR_BLUE_MEDIUM));
+                    let rectangle = fill(bounds, color);
 
                     rectangles.push(rectangle);
                 }
@@ -965,14 +976,11 @@ impl Element for EditorElement {
         prepaint: &mut Self::PrepaintState,
         context: &mut gpui::WindowContext,
     ) {
-        let focus_handle = self.input.read(context).focus_handle.clone();
         let edit_location_rectangles = prepaint.edit_location_rectangles.clone();
         let lines = prepaint.lines.clone();
 
-        if focus_handle.is_focused(context) {
-            for rectangle in edit_location_rectangles {
-                context.paint_quad(rectangle);
-            }
+        for rectangle in edit_location_rectangles {
+            context.paint_quad(rectangle);
         }
 
         for (index, line) in lines.iter().enumerate() {
