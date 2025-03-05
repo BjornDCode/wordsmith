@@ -1,14 +1,11 @@
-use std::ops::Index;
 use std::{cmp::Ordering, ops::Range};
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    Font, FontWeight, Hsla, LineLayout, PaintQuad, Pixels, Point, Position, ShapedLine,
-    SharedString, Style, TextRun, View, ViewContext,
+    Font, FontWeight, Hsla, PaintQuad, Pixels, Point, ShapedLine, SharedString, Style, TextRun,
+    View, ViewContext,
 };
 
-// use crate::content::{Block, Content, Size};
-// use crate::content::{Render, RenderedBlock};
 use crate::{
     content::{Content, Line, LineType},
     text::WrappedText,
@@ -37,79 +34,6 @@ enum EditLocation {
     Cursor(Cursor),
     Selection(Selection),
 }
-
-// impl EditLocation {
-//     pub fn starting_point(&self, next_direction: SelectionDirection) -> CursorPoint {
-//         match self.clone() {
-//             EditLocation::Cursor(cursor) => cursor.position,
-//             EditLocation::Selection(selection) => {
-//                 let reversed = next_direction == SelectionDirection::Backwards;
-
-//                 match (selection.direction(), reversed) {
-//                     (SelectionDirection::Backwards, true) => selection.end,
-//                     (SelectionDirection::Backwards, false) => selection.start,
-//                     (SelectionDirection::Forwards, true) => selection.start,
-//                     (SelectionDirection::Forwards, false) => selection.end,
-//                 }
-//             }
-//         }
-//     }
-// }
-
-// #[derive(Debug, Clone)]
-// pub struct CursorPoint {
-//     pub block_index: usize,
-//     pub offset: usize,
-// }
-
-// impl CursorPoint {
-//     pub fn new(block_index: usize, offset: usize) -> CursorPoint {
-//         CursorPoint {
-//             block_index,
-//             offset,
-//         }
-//     }
-// }
-
-// impl PartialEq for CursorPoint {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.block_index == other.block_index && self.offset == other.offset
-//     }
-// }
-
-// impl Eq for CursorPoint {}
-
-// impl Ord for CursorPoint {
-//     fn cmp(&self, other: &Self) -> Ordering {
-//         self.partial_cmp(other).unwrap()
-//     }
-// }
-
-// impl PartialOrd for CursorPoint {
-//     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-//         if self.block_index == other.block_index {
-//             if self.offset < other.offset {
-//                 return Some(Ordering::Less);
-//             }
-
-//             if self.offset > other.offset {
-//                 return Some(Ordering::Greater);
-//             }
-
-//             return Some(Ordering::Equal);
-//         }
-
-//         if self.block_index < other.block_index {
-//             return Some(Ordering::Less);
-//         }
-
-//         if self.block_index > other.block_index {
-//             return Some(Ordering::Greater);
-//         }
-
-//         return Some(Ordering::Equal);
-//     }
-// }
 
 #[derive(Debug, Clone)]
 pub struct EditorPosition {
@@ -550,7 +474,7 @@ impl Editor {
                 let line = self.content.line(cursor.position.y);
 
                 match (line.clone().kind, cursor.position.x) {
-                    (LineType::HeadlineStart(level), 0) => {
+                    (LineType::HeadlineStart(_level), 0) => {
                         let position = EditorPosition::new(cursor.position.y, line.beginning());
                         let range = position.clone()..cursor.position;
 
@@ -896,8 +820,6 @@ impl RenderedLine {
 struct PrepaintState {
     lines: Vec<RenderedLine>,
     edit_location_rectangles: Vec<PaintQuad>,
-    // blocks: Vec<RenderedBlock>,
-    // headline_markers: Vec<RenderedHeadlineMarker>,
 }
 
 impl Element for EditorElement {
@@ -931,11 +853,8 @@ impl Element for EditorElement {
         let font_size = style.font_size.to_pixels(context.rem_size());
 
         let mut lines: Vec<RenderedLine> = vec![];
-        let mut is_inside_headline = false;
-
-        // let text = content.text();
-        // let raw_lines: Vec<_> = text.lines().map(|s| s.to_string()).collect();
         let raw_lines = content.lines();
+
         for line in &raw_lines {
             let run = match line.kind {
                 LineType::HeadlineStart(_) => TextRun {
@@ -977,62 +896,6 @@ impl Element for EditorElement {
                 .unwrap();
 
             lines.push(RenderedLine::new(line.clone(), shaped_line));
-
-            // let is_start_of_headline = line.starts_with('#');
-
-            // if is_start_of_headline {
-            //     is_inside_headline = true;
-            // }
-
-            // if line.is_empty() {
-            //     is_inside_headline = false;
-            // }
-
-            // if is_inside_headline {
-            //     let runs = vec![TextRun {
-            //         len: line.len(),
-            //         font: Font {
-            //             weight: FontWeight::EXTRA_BOLD,
-            //             ..style.font()
-            //         },
-            //         color: Hsla::from(rgb(COLOR_GRAY_800)),
-            //         background_color: None,
-            //         underline: None,
-            //         strikethrough: None,
-            //     }];
-            //     let shaped_line = context
-            //         .text_system()
-            //         .shape_line(SharedString::from(line), font_size, &runs)
-            //         .unwrap();
-
-            //     let level = line
-            //         .chars()
-            //         .take_while(|&character| character == '#')
-            //         .count();
-
-            //     let kind = if is_start_of_headline {
-            //         LineType::HeadlineStart(level)
-            //     } else {
-            //         LineType::HeadlineNotStart
-            //     };
-
-            //     lines.push(RenderedLine::new(kind, shaped_line));
-            // } else {
-            //     let runs = vec![TextRun {
-            //         len: line.len(),
-            //         font: style.font(),
-            //         color: Hsla::from(rgb(COLOR_GRAY_700)),
-            //         background_color: None,
-            //         underline: None,
-            //         strikethrough: None,
-            //     }];
-            //     let shaped_line = context
-            //         .text_system()
-            //         .shape_line(SharedString::from(line), font_size, &runs)
-            //         .unwrap();
-
-            //     lines.push(RenderedLine::new(LineType::Regular, shaped_line));
-            // }
         }
 
         let edit_location_rectangles = match input.edit_location.clone() {
@@ -1085,194 +948,12 @@ impl Element for EditorElement {
                 }
 
                 rectangles
-
-                //         let mut rectangles = vec![];
-                //         let smallest_point = std::cmp::min(selection.start.clone(), selection.end.clone());
-                //         let largest_point = std::cmp::max(selection.start.clone(), selection.end.clone());
-                //         let block_range = smallest_point.block_index..largest_point.block_index + 1;
-
-                //         for block_index in block_range.clone() {
-                //             let block_start_line_index = content.block_start(block_index);
-                //             let block = content.block(block_index);
-                //             let min = if block_index == block_range.start {
-                //                 smallest_point.offset
-                //             } else {
-                //                 0
-                //             };
-                //             let max = if block_index == block_range.end - 1 {
-                //                 largest_point.offset
-                //             } else {
-                //                 block.length()
-                //             };
-                //             let line_range = block.line_range(min, max);
-
-                //             for line_index in line_range.clone() {
-                //                 let start = if line_index == line_range.start {
-                //                     block.offset_in_line(line_index, min)
-                //                 } else {
-                //                     0
-                //                 };
-                //                 let end = if block_index == block_range.end - 1
-                //                     && line_index == line_range.end - 1
-                //                 {
-                //                     if block_index == block_range.end - 1 {
-                //                         block.offset_in_line(line_index, max)
-                //                     } else {
-                //                         let offset = block.offset_in_line(line_index, min);
-
-                //                         CHARACTER_COUNT_PER_LINE - offset
-                //                     }
-                //                 } else {
-                //                     CHARACTER_COUNT_PER_LINE - start
-                //                 };
-
-                //                 let left = bounds.left() + px(start as f32) * CHARACTER_WIDTH - px(1.);
-                //                 let top = bounds.top()
-                //                     + px(block_start_line_index as f32) * context.line_height()
-                //                     + px(line_index as f32) * context.line_height();
-                //                 let width = if line_range.start == line_range.end - 1 {
-                //                     (px(end as f32) - px(start as f32)) * CHARACTER_WIDTH + px(2.)
-                //                 } else {
-                //                     px(end as f32) * CHARACTER_WIDTH + px(2.)
-                //                 };
-
-                //                 let bounds =
-                //                     Bounds::new(point(left, top), size(width, context.line_height()));
-                //                 let rectangle = fill(bounds, rgb(COLOR_BLUE_MEDIUM));
-
-                //                 rectangles.push(rectangle);
-                //             }
-                //         }
-
-                //         rectangles
             }
         };
-
-        // let blocks = content.blocks();
-
-        // let mut headline_markers = vec![];
-
-        // for block in &blocks {
-        //     if let Block::Headline(ref headline) = block {
-        //         let width = px(16. * headline.level() as f32);
-        //         let content = "#".repeat(headline.level()) + " ";
-        //         let runs = vec![TextRun {
-        //             len: content.len(),
-        //             font: Font {
-        //                 weight: FontWeight::EXTRA_BOLD,
-        //                 ..style.font()
-        //             },
-        //             color: Hsla::from(rgb(COLOR_GRAY_800)),
-        //             background_color: None,
-        //             underline: None,
-        //             strikethrough: None,
-        //         }];
-        //         let shaped_text = context
-        //             .text_system()
-        //             .shape_line(content.into(), font_size, &runs)
-        //             .unwrap();
-        //         let origin = point(
-        //             bounds.origin.x - width,
-        //             bounds.origin.y + (context.line_height() * block.line_index()),
-        //         );
-
-        //         headline_markers.push(RenderedHeadlineMarker {
-        //             shaped_text,
-        //             origin,
-        //         });
-        //     }
-        // }
-
-        // let rendered_blocks: Vec<RenderedBlock> = blocks
-        //     .into_iter()
-        //     .map(|mut block| block.render(context.text_system(), style.font(), font_size))
-        //     .collect();
-
-        // let edit_location_rectangles = match input.edit_location.clone() {
-        //     EditLocation::Cursor(caret) => {
-        //         let position = content.cursor_position(caret.position);
-
-        //         let rectangles = vec![fill(
-        //             Bounds::new(
-        //                 point(
-        //                     bounds.left() + px(position.x as f32) * CHARACTER_WIDTH - px(1.),
-        //                     bounds.top() + context.line_height() * px(position.y as f32) + px(2.),
-        //                 ),
-        //                 size(px(2.), px(20.)),
-        //             ),
-        //             rgb(COLOR_BLUE_DARK),
-        //         )];
-
-        //         rectangles
-        //     }
-        //     EditLocation::Selection(selection) => {
-        //         let mut rectangles = vec![];
-        //         let smallest_point = std::cmp::min(selection.start.clone(), selection.end.clone());
-        //         let largest_point = std::cmp::max(selection.start.clone(), selection.end.clone());
-        //         let block_range = smallest_point.block_index..largest_point.block_index + 1;
-
-        //         for block_index in block_range.clone() {
-        //             let block_start_line_index = content.block_start(block_index);
-        //             let block = content.block(block_index);
-        //             let min = if block_index == block_range.start {
-        //                 smallest_point.offset
-        //             } else {
-        //                 0
-        //             };
-        //             let max = if block_index == block_range.end - 1 {
-        //                 largest_point.offset
-        //             } else {
-        //                 block.length()
-        //             };
-        //             let line_range = block.line_range(min, max);
-
-        //             for line_index in line_range.clone() {
-        //                 let start = if line_index == line_range.start {
-        //                     block.offset_in_line(line_index, min)
-        //                 } else {
-        //                     0
-        //                 };
-        //                 let end = if block_index == block_range.end - 1
-        //                     && line_index == line_range.end - 1
-        //                 {
-        //                     if block_index == block_range.end - 1 {
-        //                         block.offset_in_line(line_index, max)
-        //                     } else {
-        //                         let offset = block.offset_in_line(line_index, min);
-
-        //                         CHARACTER_COUNT_PER_LINE - offset
-        //                     }
-        //                 } else {
-        //                     CHARACTER_COUNT_PER_LINE - start
-        //                 };
-
-        //                 let left = bounds.left() + px(start as f32) * CHARACTER_WIDTH - px(1.);
-        //                 let top = bounds.top()
-        //                     + px(block_start_line_index as f32) * context.line_height()
-        //                     + px(line_index as f32) * context.line_height();
-        //                 let width = if line_range.start == line_range.end - 1 {
-        //                     (px(end as f32) - px(start as f32)) * CHARACTER_WIDTH + px(2.)
-        //                 } else {
-        //                     px(end as f32) * CHARACTER_WIDTH + px(2.)
-        //                 };
-
-        //                 let bounds =
-        //                     Bounds::new(point(left, top), size(width, context.line_height()));
-        //                 let rectangle = fill(bounds, rgb(COLOR_BLUE_MEDIUM));
-
-        //                 rectangles.push(rectangle);
-        //             }
-        //         }
-
-        //         rectangles
-        //     }
-        // };
 
         PrepaintState {
             lines,
             edit_location_rectangles,
-            // blocks: rendered_blocks,
-            // headline_markers,
         }
     }
 
@@ -1312,55 +993,5 @@ impl Element for EditorElement {
                 .paint(point, context.line_height(), context)
                 .unwrap();
         }
-
-        // let blocks = prepaint.blocks.clone().into_iter();
-        // let headline_markers = prepaint.headline_markers.clone();
-
-        // for block in blocks {
-        //     // The reason we are not just looping over lines directly is that there seem to be a rogue newline at the end
-        //     // So this is a hacky way to avoid that
-        //     // Should probably fix that issue properly at some point
-
-        //     let mut line_count = 0;
-
-        //     for index in 0..block.line_length {
-        //         let line = &block.lines.index(index);
-
-        //         let offset = match block.block {
-        //             Block::Newline(_) => px(0.),
-        //             Block::Paragraph(_) => px(0.),
-        //             Block::Headline(ref headline) => {
-        //                 px((headline.level() + 1) as f32) * CHARACTER_WIDTH
-        //             }
-        //         };
-        //         let point = Point::new(
-        //             bounds.origin.x + EDITOR_HORIZONTAL_MARGIN - offset,
-        //             bounds.origin.y
-        //                 + (context.line_height() * px(block.line_index as f32 + line_count as f32)),
-        //         );
-
-        //         line.paint(point, context.line_height(), context).unwrap();
-
-        //         line_count += 1;
-        //     }
-        // }
-
-        // for marker in headline_markers {
-        //     marker.render(context);
-        // }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RenderedHeadlineMarker {
-    shaped_text: ShapedLine,
-    origin: Point<Pixels>,
-}
-
-impl RenderedHeadlineMarker {
-    pub fn render(&self, context: &mut gpui::WindowContext) {
-        self.shaped_text
-            .paint(self.origin, context.line_height(), context)
-            .unwrap();
     }
 }

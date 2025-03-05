@@ -22,36 +22,6 @@ impl RawText {
 }
 
 #[derive(Debug, Clone)]
-struct TrimmedText {
-    text: RawText,
-}
-
-impl TrimmedText {
-    pub fn new(text: String) -> TrimmedText {
-        TrimmedText {
-            text: RawText::new(text),
-        }
-    }
-}
-
-impl TrimmedText {
-    pub fn to_string(&self) -> String {
-        let content = self.text.to_string();
-
-        // if content.starts_with('#') {
-        //     let level = content
-        //         .chars()
-        //         .take_while(|&character| character == '#')
-        //         .count();
-
-        //     return content.chars().skip(level + 1).collect();
-        // }
-
-        return content;
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct WrappedText {
     text: RawText,
 }
@@ -68,54 +38,6 @@ impl WrappedText {
         let end_offset = self.resolve_offset(range.end);
 
         self.text.replace(start_offset..end_offset, replacement);
-    }
-
-    pub fn line_length(&self) -> usize {
-        let content = self.to_string();
-
-        content.lines().count()
-    }
-
-    pub fn lines(&self) -> Vec<String> {
-        let content = self.to_string();
-
-        content.lines().map(String::from).collect()
-    }
-
-    pub fn lines_and_wrap_points(&self) -> (Vec<String>, Vec<usize>) {
-        let (_, wrap_points) = self.to_string_with_wrap_points();
-
-        return (self.lines(), wrap_points);
-    }
-
-    pub fn line(&self, line_index: usize) -> String {
-        let lines = self.lines();
-        let line = lines.index(line_index);
-
-        return line.clone();
-    }
-
-    pub fn length(&self) -> usize {
-        let (content, wrap_points) = self.to_string_with_wrap_points();
-
-        return content.len() - wrap_points.len();
-    }
-
-    pub fn is_soft_wrapped_line(&self, line_index: usize) -> bool {
-        let (lines, wrap_points) = self.lines_and_wrap_points();
-
-        let lines = lines.into_iter().enumerate();
-        let mut offset = 0;
-
-        for (index, line) in lines {
-            offset += line.len();
-
-            if index == line_index {
-                break;
-            }
-        }
-
-        return wrap_points.contains(&offset);
     }
 
     fn resolve_offset(&self, offset: usize) -> usize {
