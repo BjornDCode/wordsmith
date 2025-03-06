@@ -57,6 +57,7 @@ actions!(
         SelectEndOfLine,
         SelectBeginningOfWord,
         SelectEndOfWord,
+        SelectAll,
         RemoveSelection,
         Backspace,
     ]
@@ -108,6 +109,7 @@ fn main() {
                 KeyBinding::new("cmd-shift-right", SelectEndOfLine, "editor".into()),
                 KeyBinding::new("alt-shift-left", SelectBeginningOfWord, "editor".into()),
                 KeyBinding::new("alt-shift-right", SelectEndOfWord, "editor".into()),
+                KeyBinding::new("cmd-a", SelectAll, "editor".into()),
                 KeyBinding::new("escape", RemoveSelection, "editor".into()),
                 KeyBinding::new("backspace", Backspace, "editor".into()),
             ]);

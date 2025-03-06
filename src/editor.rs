@@ -11,7 +11,7 @@ use crate::{
     text::WrappedText,
     Backspace, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown,
     MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
-    SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord, SelectDown,
+    SelectAll, SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord, SelectDown,
     SelectEndOfFile, SelectEndOfLine, SelectEndOfWord, SelectLeft, SelectRight, SelectUp,
     COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_300, COLOR_GRAY_400,
     COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
@@ -458,6 +458,13 @@ impl Editor {
         };
     }
 
+    fn select_all(&mut self, _: &SelectAll, context: &mut ViewContext<Self>) {
+        let start = self.beginning_of_file_position();
+        let end = self.end_of_file_position();
+
+        self.select(start, end, context);
+    }
+
     fn remove_selection(&mut self, _: &RemoveSelection, context: &mut ViewContext<Self>) {
         if let EditLocation::Selection(selection) = self.edit_location.clone() {
             self.move_to(selection.start.clone(), selection.start.x, context);
@@ -771,6 +778,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::select_end_of_line))
             .on_action(context.listener(Self::select_beginning_of_word))
             .on_action(context.listener(Self::select_end_of_word))
+            .on_action(context.listener(Self::select_all))
             .on_action(context.listener(Self::remove_selection))
             .on_action(context.listener(Self::backspace))
             .pt_8()
