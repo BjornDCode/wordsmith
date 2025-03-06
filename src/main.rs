@@ -60,6 +60,7 @@ actions!(
         SelectAll,
         RemoveSelection,
         Backspace,
+        Enter,
     ]
 );
 impl_actions!(app, [SetMode]);
@@ -112,6 +113,7 @@ fn main() {
                 KeyBinding::new("cmd-a", SelectAll, "editor".into()),
                 KeyBinding::new("escape", RemoveSelection, "editor".into()),
                 KeyBinding::new("backspace", Backspace, "editor".into()),
+                KeyBinding::new("enter", Enter, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());

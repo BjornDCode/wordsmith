@@ -9,7 +9,7 @@ use gpui::{
 use crate::{
     content::{Content, Line, LineType},
     text::WrappedText,
-    Backspace, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown,
+    Backspace, Enter, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown,
     MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
     SelectAll, SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord, SelectDown,
     SelectEndOfFile, SelectEndOfLine, SelectEndOfWord, SelectLeft, SelectRight, SelectUp,
@@ -148,11 +148,11 @@ enum SelectionDirection {
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        let edit_location = EditLocation::Cursor(Cursor::new(0, 1, 1));
-        // let edit_location = EditLocation::Selection(Selection::new(
-        //     EditorPosition::new(0, 2),
-        //     EditorPosition::new(5, 20),
-        // ));
+        // let edit_location = EditLocation::Cursor(Cursor::new(0, 1, 1));
+        let edit_location = EditLocation::Selection(Selection::new(
+            EditorPosition::new(4, 4),
+            EditorPosition::new(4, 8),
+        ));
 
         return Editor {
             focus_handle,
@@ -510,6 +510,21 @@ impl Editor {
         }
     }
 
+    fn enter(&mut self, _: &Enter, context: &mut ViewContext<Self>) {
+        let range = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position.clone()..cursor.position,
+            EditLocation::Selection(selection) => selection.smallest()..selection.largest(),
+        };
+
+        self.replace_range(range.clone(), "\n".into(), context);
+
+        let y = range.end.y + 1;
+        let line = self.content.line(y);
+        let position = EditorPosition::new(y, line.beginning());
+
+        self.move_to(position.clone(), position.x, context);
+    }
+
     fn move_to(
         &mut self,
         position: EditorPosition,
@@ -781,6 +796,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::select_all))
             .on_action(context.listener(Self::remove_selection))
             .on_action(context.listener(Self::backspace))
+            .on_action(context.listener(Self::enter))
             .pt_8()
             .group("editor-container")
             // .bg(rgb(COLOR_PINK))
