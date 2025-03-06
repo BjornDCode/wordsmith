@@ -151,7 +151,9 @@ impl Content {
 
             y += 1;
             x -= line.length();
-            x -= 1; // Newline
+            x = x.saturating_sub(1);
+            // println!("X: {}", x);
+            // x -= 1; // Newline
         }
 
         let line = self.line(y);
