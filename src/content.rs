@@ -125,7 +125,7 @@ impl Content {
 
         for line in previous_lines {
             offset += line.length() as isize;
-            offset += 1;
+            offset += 1; // Newline
         }
 
         let line = lines.index(position.y);
@@ -137,5 +137,29 @@ impl Content {
         offset += position.x;
 
         return offset as usize;
+    }
+
+    pub fn offset_to_position(&self, offset: usize) -> EditorPosition {
+        let lines = self.lines();
+        let mut x = offset;
+        let mut y = 0;
+
+        for line in lines {
+            if x < line.length() {
+                break;
+            }
+
+            y += 1;
+            x -= line.length();
+            x -= 1; // Newline
+        }
+
+        let line = self.line(y);
+
+        if let LineType::HeadlineStart(level) = line.kind {
+            x -= level + 1;
+        }
+
+        return EditorPosition::new(y, x as isize);
     }
 }

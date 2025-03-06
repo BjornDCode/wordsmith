@@ -1,9 +1,9 @@
 use std::{cmp::Ordering, ops::Range};
 
 use gpui::{
-    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, FocusHandle, FocusableView,
-    Font, FontWeight, Hsla, PaintQuad, Pixels, Point, ShapedLine, SharedString, Style, TextRun,
-    View, ViewContext,
+    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, ElementInputHandler,
+    FocusHandle, FocusableView, Font, FontWeight, Hsla, PaintQuad, Pixels, Point, ShapedLine,
+    SharedString, Style, TextRun, View, ViewContext, ViewInputHandler,
 };
 
 use crate::{
@@ -792,7 +792,85 @@ struct EditorElement {
     input: View<Editor>,
 }
 
-// impl ViewInputHandler for Editor {}
+impl ViewInputHandler for Editor {
+    fn text_for_range(
+        &mut self,
+        range: Range<usize>,
+        adjusted_range: &mut Option<Range<usize>>,
+        cx: &mut ViewContext<Self>,
+    ) -> Option<String> {
+        println!("Text for range");
+        todo!();
+    }
+
+    fn selected_text_range(
+        &mut self,
+        ignore_disabled_input: bool,
+        cx: &mut ViewContext<Self>,
+    ) -> Option<gpui::UTF16Selection> {
+        println!("Selected text range");
+        todo!();
+    }
+
+    fn marked_text_range(&self, cx: &mut ViewContext<Self>) -> Option<Range<usize>> {
+        None
+    }
+
+    fn unmark_text(&mut self, cx: &mut ViewContext<Self>) {
+        println!("Unmark text");
+        todo!()
+    }
+
+    fn replace_text_in_range(
+        &mut self,
+        range: Option<Range<usize>>,
+        text: &str,
+        cx: &mut ViewContext<Self>,
+    ) {
+        // If no range is provided, use the current selection or cursor position
+        let range = if let Some(range) = range {
+            let start = self.content.offset_to_position(range.start);
+            let end = self.content.offset_to_position(range.end);
+            start..end
+        } else {
+            match &self.edit_location {
+                EditLocation::Selection(selection) => selection.smallest()..selection.largest(),
+                EditLocation::Cursor(cursor) => cursor.position.clone()..cursor.position.clone(),
+            }
+        };
+
+        // Replace the text in the given range
+        self.replace_range(range.clone(), text.to_string(), cx);
+
+        // Move cursor to end of inserted text
+        let end_position = self
+            .content
+            .offset_to_position(self.content.position_to_offset(range.start.clone()) + text.len());
+
+        self.move_to(end_position.clone(), end_position.x, cx);
+    }
+
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        range: Option<Range<usize>>,
+        new_text: &str,
+        new_selected_range: Option<Range<usize>>,
+        cx: &mut ViewContext<Self>,
+    ) {
+        println!("Replace and mark text in range");
+        todo!()
+    }
+
+    fn bounds_for_range(
+        &mut self,
+        range_utf16: Range<usize>,
+        element_bounds: Bounds<Pixels>,
+        cx: &mut ViewContext<Self>,
+    ) -> Option<Bounds<Pixels>> {
+        println!("Bounds for range");
+        todo!()
+    }
+}
 
 impl IntoElement for EditorElement {
     type Element = Self;
@@ -976,8 +1054,14 @@ impl Element for EditorElement {
         prepaint: &mut Self::PrepaintState,
         context: &mut gpui::WindowContext,
     ) {
+        let focus_handle = self.input.read(context).focus_handle.clone();
         let edit_location_rectangles = prepaint.edit_location_rectangles.clone();
         let lines = prepaint.lines.clone();
+
+        context.handle_input(
+            &focus_handle,
+            ElementInputHandler::new(bounds, self.input.clone()),
+        );
 
         for rectangle in edit_location_rectangles {
             context.paint_quad(rectangle);
