@@ -145,15 +145,13 @@ impl Content {
         let mut y = 0;
 
         for line in lines {
-            if x < line.length() {
+            if x <= line.length() {
                 break;
             }
 
             y += 1;
             x -= line.length();
             x = x.saturating_sub(1);
-            // println!("X: {}", x);
-            // x -= 1; // Newline
         }
 
         let line = self.line(y);
