@@ -148,15 +148,15 @@ enum SelectionDirection {
 
 impl Editor {
     pub fn new(focus_handle: FocusHandle) -> Editor {
-        // let edit_location = EditLocation::Cursor(Cursor::new(0, 1, 1));
-        let edit_location = EditLocation::Selection(Selection::new(
-            EditorPosition::new(4, 4),
-            EditorPosition::new(4, 8),
-        ));
+        let edit_location = EditLocation::Cursor(Cursor::new(4, 0, 0));
+        // let edit_location = EditLocation::Selection(Selection::new(
+        //     EditorPosition::new(4, 4),
+        //     EditorPosition::new(4, 8),
+        // ));
 
         return Editor {
             focus_handle,
-            content: Content::new("## This is a very very very very very very very very headline\n\nDolor elend vitae porta iaculis etiam commodo. Mus erat lacus penatibus congue ultricies. Elementum tristique sociosqu curae etiam consequat et arcu placerat est.\n\nHabitant primis praesent malesuada lorem parturient lobortis metus. Pulvinar ultrices ligula id ac quisque curae, leo est.\n\n### Another headline\n\nYo, some more text\n\n## Headline".into()),
+            content: Content::new("# Nomina sua\n\n## Cortice versantes illa herbis crinem\n\nLorem markdownum laetus ungues puppim priorum ardescit coluit putat. Sunt quas virtus si sibi non qui, nec optastis, nec ut radiare claudit generosior paulatim animos viridi! Detinuit destrinxit quas caro nutricis. Famamque hauriret atque itum dies ore. Tuus oculos poscit carmine, hanc minus procorum **undae**.\n\nPer erubuit, euntem, te et nec Arethusa, trunci nihil, ignorans Lyaeus similem! Lycopen se illa per Iuno. Sub nostris campus nostro, ille utque **inque pressit exactum** laesum meditataque pellant hoc ope recentia perculit pugnae videns.\n\n1. Reparatque ferit populos tantus in erectus nare\n2. Quondam Anubis rogantis toto colloque idque\n3.Femina procul renidenti\n4. Quaerit viderat siqua esse munera tellurem illa 5.\nIn videres alimenta Athenae\n6. Omnia pervenit quam viribus costas arvis Lyrnesia\n\n## Heros sibi\n\nMihi soceri attigit: cognorat negarent humana lancea exstinctique tabo. Nec idcirco tegit, umbra cedit corpora. Sed dedisse futura: est [radice](http://sed.io/doctain) infecere pectora, corpus lacrimae.\n\nNatando [fovebam](http://fratriqueprius.net/cumque.html), si manibus et data, sed *morari* memorant scitis ad domus relinquo. Terra paulatim, mea nisi tum penetrabile, *sine tu* annos. Censet vates ora audax et aera flumine amomo cum errent requies enim torvo! Simul cum Aeacidae tenui carens obortis cernunt quis indignos nulli harenas, pater, mitra die.\n\n1. Seu sic arcus quis vigor figere bracchia\n2. Dicebant devorat aras cupiunt cacumina natisque tergoris\n3. Femur Acoetes primus et in fati avertens\n4. Discede Atridae\n\n## Rami Siculo rettulit ab convellere et mea\n\nIuvenci nebulas autumnos curarum retinebat colorem, serpens et tulit Maenalon? *Satis adit Tisiphone* nox ora institerant alias membra coniuge saepe magni *discumbere*, suae. Gemunt commenta lacrimarum quis; mundi quae fidum hauriret currant institerant animo torquetur interdum. *Artes felices triones* urbis defendere sentire; sed sciret reddidit!\n\n> Illa Schoeneia crede. Munere miram, quo ardet, iam causa ferarum equus\n> dirusque fertur Cenchreis Odrysius.\n\nExercet iuvenem et summus meus. Pectora et saxa, [ceperunt olentes](http://egressus.net/ver-cycnum.php) luet. Vana legit, lapis **perfidiae fausto**, superbum postquam mortalia et saliunt vetusto opem est.".into()),
             edit_location
         };
     }
