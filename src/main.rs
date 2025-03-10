@@ -118,6 +118,9 @@ fn main() {
 
             context.on_action(|_: &Quit, context| context.quit());
 
+            let path = "/Users/bjornlindholm/Documents/test.md";
+            let contents = fs::read_to_string(path).unwrap();
+
             let window = context
                 .open_window(
                     WindowOptions {
@@ -125,8 +128,8 @@ fn main() {
                         ..Default::default()
                     },
                     |context| {
-                        let editor =
-                            context.new_view(|context| Editor::new(context.focus_handle()));
+                        let editor = context
+                            .new_view(|context| Editor::new(contents, context.focus_handle()));
 
                         context.new_view(|context| Wordsmith::new(context.focus_handle(), editor))
                     },
