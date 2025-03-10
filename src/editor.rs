@@ -799,10 +799,11 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::enter))
             .pt_8()
             .group("editor-container")
-            // .bg(rgb(COLOR_PINK))
+            .w_full()
+            .flex()
+            .justify_center()
             .child(
                 div()
-                    .bg(rgb(COLOR_PINK))
                     .w(CONTAINER_WIDTH)
                     .line_height(px(24.))
                     .child(EditorElement {
