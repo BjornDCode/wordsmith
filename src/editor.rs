@@ -18,6 +18,7 @@ use crate::{
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
+const LINE_HEIGHT: Pixels = px(24.);
 pub const CHARACTER_COUNT_PER_LINE: usize = 50;
 const EDITOR_HORIZONTAL_MARGIN: Pixels = px(71.68); // 7 (6 headline markers + 1 space) * CHARACTERWIDTH;
 const EDITOR_BASE_WIDTH: Pixels = px(512.);
@@ -797,15 +798,17 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::remove_selection))
             .on_action(context.listener(Self::backspace))
             .on_action(context.listener(Self::enter))
-            .pt_8()
             .group("editor-container")
             .w_full()
             .flex()
             .justify_center()
             .child(
                 div()
+                    .id("editor")
                     .w(CONTAINER_WIDTH)
-                    .line_height(px(24.))
+                    .line_height(LINE_HEIGHT)
+                    .py_8()
+                    .overflow_y_scroll()
                     .child(EditorElement {
                         input: context.view().clone(),
                     }),
@@ -938,9 +941,22 @@ impl Element for EditorElement {
         _id: Option<&gpui::GlobalElementId>,
         context: &mut gpui::WindowContext,
     ) -> (gpui::LayoutId, Self::RequestLayoutState) {
-        let style = Style::default();
+        let input = self.input.read(context);
+        let content = input.content.clone();
+        let lines = content.lines();
 
-        (context.request_layout(style, []), ())
+        let style = Style::default();
+        let new_style = Style {
+            size: gpui::Size {
+                width: gpui::Length::Auto,
+                height: gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+                    gpui::AbsoluteLength::Pixels(px(lines.len() as f32) * LINE_HEIGHT),
+                )),
+            },
+            ..style
+        };
+
+        (context.request_layout(new_style, []), ())
     }
 
     fn prepaint(
