@@ -1,9 +1,9 @@
-use std::ops::{Index, Range};
+use std::ops::Range;
 
 use crate::editor::CHARACTER_COUNT_PER_LINE;
 
 #[derive(Debug, Clone)]
-struct RawText {
+pub struct RawText {
     text: String,
 }
 
@@ -31,6 +31,10 @@ impl WrappedText {
         WrappedText {
             text: RawText::new(text),
         }
+    }
+
+    pub fn original(&self) -> RawText {
+        return self.text.clone();
     }
 
     pub fn replace(&mut self, range: Range<usize>, replacement: String) {

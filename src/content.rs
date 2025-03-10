@@ -64,6 +64,10 @@ impl Content {
         Content { original, wrapped }
     }
 
+    pub fn to_string(&self) -> String {
+        return self.original.clone().into();
+    }
+
     pub fn text(&self) -> WrappedText {
         return self.wrapped.clone();
     }
@@ -110,6 +114,7 @@ impl Content {
 
     pub fn replace(&mut self, range: Range<usize>, replacement: String) {
         self.wrapped.replace(range, replacement);
+        self.original = self.wrapped.original().to_string().into();
     }
 
     pub fn line(&self, index: usize) -> Line {

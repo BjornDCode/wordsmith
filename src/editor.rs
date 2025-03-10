@@ -7,13 +7,14 @@ use gpui::{
 };
 
 use crate::{
+    buffer::Buffer,
     content::{Content, Line, LineType},
     text::WrappedText,
     Backspace, Enter, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown,
     MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
-    SelectAll, SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord, SelectDown,
-    SelectEndOfFile, SelectEndOfLine, SelectEndOfWord, SelectLeft, SelectRight, SelectUp,
-    COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_300, COLOR_GRAY_400,
+    Save, SelectAll, SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord,
+    SelectDown, SelectEndOfFile, SelectEndOfLine, SelectEndOfWord, SelectLeft, SelectRight,
+    SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_300, COLOR_GRAY_400,
     COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
 };
 
@@ -26,7 +27,7 @@ pub const CONTAINER_WIDTH: Pixels = px(655.36); // Base width + Margin * 2
 
 pub struct Editor {
     focus_handle: FocusHandle,
-    content: Content,
+    buffer: Buffer,
     edit_location: EditLocation,
 }
 
@@ -148,7 +149,7 @@ enum SelectionDirection {
 }
 
 impl Editor {
-    pub fn new(content: String, focus_handle: FocusHandle) -> Editor {
+    pub fn new(buffer: Buffer, focus_handle: FocusHandle) -> Editor {
         let edit_location = EditLocation::Cursor(Cursor::new(0, 0, 0));
         // let edit_location = EditLocation::Selection(Selection::new(
         //     EditorPosition::new(4, 4),
@@ -157,7 +158,7 @@ impl Editor {
 
         return Editor {
             focus_handle,
-            content: Content::new(content.into()),
+            buffer,
             edit_location,
         };
     }
@@ -232,7 +233,7 @@ impl Editor {
     fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
         let position = self.end_of_file_position();
 
-        let line = self.content.line(position.y);
+        let line = self.buffer.content.line(position.y);
 
         self.move_to(position, line.end(), context);
     }
@@ -479,7 +480,7 @@ impl Editor {
                     return;
                 }
 
-                let line = self.content.line(cursor.position.y);
+                let line = self.buffer.content.line(cursor.position.y);
 
                 match (line.clone().kind, cursor.position.x) {
                     (LineType::HeadlineStart(_level), 0) => {
@@ -520,10 +521,16 @@ impl Editor {
         self.replace_range(range.clone(), "\n".into(), context);
 
         let y = range.end.y + 1;
-        let line = self.content.line(y);
+        let line = self.buffer.content.line(y);
         let position = EditorPosition::new(y, line.beginning());
 
         self.move_to(position.clone(), position.x, context);
+    }
+
+    fn save(&mut self, _: &Save, context: &mut ViewContext<Self>) {
+        self.buffer.save();
+
+        context.notify();
     }
 
     fn move_to(
@@ -570,16 +577,18 @@ impl Editor {
         replacement: String,
         context: &mut ViewContext<Self>,
     ) {
-        let start_offset = self.content.position_to_offset(range.start);
-        let end_offset = self.content.position_to_offset(range.end);
+        let start_offset = self.buffer.content.position_to_offset(range.start);
+        let end_offset = self.buffer.content.position_to_offset(range.end);
 
-        self.content.replace(start_offset..end_offset, replacement);
+        self.buffer
+            .content
+            .replace(start_offset..end_offset, replacement);
 
         context.notify();
     }
 
     fn left_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.content.line(point.y);
+        let line = self.buffer.content.line(point.y);
 
         if point.y == 0 && point.x == line.beginning() {
             return point;
@@ -587,7 +596,7 @@ impl Editor {
 
         if point.x == line.beginning() {
             let new_line_index = point.y - 1;
-            let line = self.content.line(new_line_index);
+            let line = self.buffer.content.line(new_line_index);
 
             return EditorPosition::new(new_line_index, line.end());
         }
@@ -596,8 +605,8 @@ impl Editor {
     }
 
     fn right_position(&self, point: EditorPosition) -> EditorPosition {
-        let line_length = self.content.lines().len();
-        let line = self.content.line(point.y);
+        let line_length = self.buffer.content.lines().len();
+        let line = self.buffer.content.line(point.y);
 
         if point.y == line_length - 1 && point.x == line.end() {
             return point;
@@ -612,11 +621,11 @@ impl Editor {
 
     fn up_position(&self, point: EditorPosition, preferred_x: isize) -> EditorPosition {
         if point.y == 0 {
-            let line = self.content.line(0);
+            let line = self.buffer.content.line(0);
             return EditorPosition::new(0, line.beginning());
         }
 
-        let previous_line = self.content.line(point.y - 1);
+        let previous_line = self.buffer.content.line(point.y - 1);
 
         let x = previous_line.clamp_x(preferred_x);
 
@@ -624,13 +633,13 @@ impl Editor {
     }
 
     fn down_position(&self, point: EditorPosition, preferred_x: isize) -> EditorPosition {
-        let line = self.content.line(point.y);
+        let line = self.buffer.content.line(point.y);
 
-        if point.y == self.content.lines().len() - 1 {
+        if point.y == self.buffer.content.lines().len() - 1 {
             return EditorPosition::new(point.y, line.end());
         }
 
-        let next_line = self.content.line(point.y + 1);
+        let next_line = self.buffer.content.line(point.y + 1);
 
         let x = next_line.clamp_x(preferred_x);
 
@@ -638,32 +647,32 @@ impl Editor {
     }
 
     fn beginning_of_file_position(&self) -> EditorPosition {
-        let line = self.content.line(0);
+        let line = self.buffer.content.line(0);
 
         return EditorPosition::new(0, line.beginning());
     }
 
     fn end_of_file_position(&self) -> EditorPosition {
-        let y = self.content.lines().len() - 1;
-        let line = self.content.line(y);
+        let y = self.buffer.content.lines().len() - 1;
+        let line = self.buffer.content.line(y);
 
         return EditorPosition::new(y, line.end());
     }
 
     fn beginning_of_line_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.content.line(point.y);
+        let line = self.buffer.content.line(point.y);
 
         return EditorPosition::new(point.y, line.beginning());
     }
 
     fn end_of_line_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.content.line(point.y);
+        let line = self.buffer.content.line(point.y);
 
         return EditorPosition::new(point.y, line.end());
     }
 
     fn beginning_of_word_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.content.line(point.y);
+        let line = self.buffer.content.line(point.y);
         let line_offset = (point.x - line.beginning()) as usize;
 
         // Handle edge case: at beginning of file
@@ -691,7 +700,7 @@ impl Editor {
         }
 
         // Get previous line
-        let previous_line = self.content.line(point.y - 1);
+        let previous_line = self.buffer.content.line(point.y - 1);
 
         // Handle edge case: previous line is empty
         if previous_line.text.trim().is_empty() {
@@ -708,7 +717,7 @@ impl Editor {
     }
 
     fn end_of_word_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.content.line(point.y);
+        let line = self.buffer.content.line(point.y);
         let line_offset = (point.x - line.beginning()) as usize;
 
         // First attempt: find next word boundary in current line
@@ -728,12 +737,12 @@ impl Editor {
         // If we're here, we need to look at the next line
 
         // Handle edge case: already at last line
-        if point.y >= self.content.lines().len() - 1 {
+        if point.y >= self.buffer.content.lines().len() - 1 {
             return EditorPosition::new(point.y, line.end());
         }
 
         // Get next line
-        let next_line = self.content.line(point.y + 1);
+        let next_line = self.buffer.content.line(point.y + 1);
 
         // Handle edge case: next line is empty
         if next_line.text.trim().is_empty() {
@@ -798,6 +807,7 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::remove_selection))
             .on_action(context.listener(Self::backspace))
             .on_action(context.listener(Self::enter))
+            .on_action(context.listener(Self::save))
             .group("editor-container")
             .w_full()
             .flex()
@@ -857,8 +867,8 @@ impl ViewInputHandler for Editor {
     ) {
         // If no range is provided, use the current selection or cursor position
         let range = if let Some(range) = range {
-            let start = self.content.offset_to_position(range.start);
-            let end = self.content.offset_to_position(range.end);
+            let start = self.buffer.content.offset_to_position(range.start);
+            let end = self.buffer.content.offset_to_position(range.end);
             start..end
         } else {
             match &self.edit_location {
@@ -871,9 +881,9 @@ impl ViewInputHandler for Editor {
         self.replace_range(range.clone(), text.to_string(), cx);
 
         // Move cursor to end of inserted text
-        let end_position = self
-            .content
-            .offset_to_position(self.content.position_to_offset(range.start.clone()) + text.len());
+        let end_position = self.buffer.content.offset_to_position(
+            self.buffer.content.position_to_offset(range.start.clone()) + text.len(),
+        );
 
         self.move_to(end_position.clone(), end_position.x, cx);
     }
@@ -942,7 +952,7 @@ impl Element for EditorElement {
         context: &mut gpui::WindowContext,
     ) -> (gpui::LayoutId, Self::RequestLayoutState) {
         let input = self.input.read(context);
-        let content = input.content.clone();
+        let content = input.buffer.content.clone();
         let lines = content.lines();
 
         let style = Style::default();
@@ -967,7 +977,7 @@ impl Element for EditorElement {
         context: &mut gpui::WindowContext,
     ) -> Self::PrepaintState {
         let input = self.input.read(context);
-        let content = input.content.clone();
+        let content = input.buffer.content.clone();
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
         let is_focused = input.focus_handle.is_focused(context);

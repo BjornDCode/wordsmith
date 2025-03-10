@@ -1,3 +1,4 @@
+mod buffer;
 mod content;
 mod display_map;
 mod editor;
@@ -5,6 +6,7 @@ mod text;
 
 use std::{fs, path::PathBuf};
 
+use buffer::Buffer;
 use editor::Editor;
 use gpui::{
     actions, div, img, impl_actions, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource,
@@ -35,8 +37,10 @@ const COLOR_BLUE_DARK: u32 = 0x0ea5e9;
 actions!(
     app,
     [
+        // App
         Quit,
         ToggleSidebar,
+        // Editor
         MoveLeft,
         MoveRight,
         MoveUp,
@@ -61,6 +65,8 @@ actions!(
         RemoveSelection,
         Backspace,
         Enter,
+        // File
+        Save,
     ]
 );
 impl_actions!(app, [SetMode]);
@@ -114,12 +120,13 @@ fn main() {
                 KeyBinding::new("escape", RemoveSelection, "editor".into()),
                 KeyBinding::new("backspace", Backspace, "editor".into()),
                 KeyBinding::new("enter", Enter, "editor".into()),
+                KeyBinding::new("cmd-s", Save, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());
 
             let path = "/Users/bjornlindholm/Documents/test.md";
-            let contents = fs::read_to_string(path).unwrap();
+            let buffer = Buffer::from_path(path.into());
 
             let window = context
                 .open_window(
@@ -128,8 +135,8 @@ fn main() {
                         ..Default::default()
                     },
                     |context| {
-                        let editor = context
-                            .new_view(|context| Editor::new(contents, context.focus_handle()));
+                        let editor =
+                            context.new_view(|context| Editor::new(buffer, context.focus_handle()));
 
                         context.new_view(|context| Wordsmith::new(context.focus_handle(), editor))
                     },
