@@ -2,8 +2,21 @@
 name = "wordsmith"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 gpui = { git = "https://github.com/zed-industries/zed" }
 schemars = "0.8.21"
 serde = "1.0.217"
+
+[build-dependencies]
+fs_extra = "1.3"
+
+[package.metadata.bundle]
+name = "Wordsmith"
+version = "0.0.1"
+resources = ["resources"]
+identifier = "com.wordsmith.app"
+
+[build]
+target-dir = "target"

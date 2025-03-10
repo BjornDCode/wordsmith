@@ -83,9 +83,30 @@ impl SetMode {
 }
 
 fn main() {
+    let executable_path = std::env::current_exe().unwrap();
+    let executable_dir = executable_path.parent().unwrap();
+    
+    // Try multiple potential resource paths
+    let resource_paths = vec![
+        // Dev environment: resources are in the project root
+        PathBuf::from("resources"),
+        // Bundled app: resources are next to the executable
+        executable_dir.join("resources"),
+        // macOS app bundle: resources are in the Resources directory
+        executable_dir.join("../Resources/resources"),
+    ];
+    
+    // Find the first path that exists
+    let resources_path = resource_paths
+        .into_iter()
+        .find(|path| path.exists())
+        .unwrap_or_else(|| PathBuf::from("resources"));
+    
+    println!("Using resources path: {:?}", resources_path);
+    
     gpui::App::new()
         .with_assets(Assets {
-            base: PathBuf::from("resources"),
+            base: resources_path,
         })
         .run(|context: &mut AppContext| {
             let bounds = Bounds::centered(None, size(px(1024.), px(768.)), context);
