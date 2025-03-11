@@ -864,28 +864,42 @@ impl ViewInputHandler for Editor {
         &mut self,
         range: Option<Range<usize>>,
         text: &str,
-        cx: &mut ViewContext<Self>,
+        context: &mut ViewContext<Self>,
     ) {
         // If no range is provided, use the current selection or cursor position
         let range = if let Some(range) = range {
             let start = self.buffer.content.offset_to_position(range.start);
             let end = self.buffer.content.offset_to_position(range.end);
+
             start..end
         } else {
             match &self.edit_location {
-                EditLocation::Selection(selection) => selection.smallest()..selection.largest(),
                 EditLocation::Cursor(cursor) => cursor.position.clone()..cursor.position.clone(),
+                EditLocation::Selection(selection) => selection.smallest()..selection.largest(),
             }
         };
 
-        // Replace the text in the given range
-        self.replace_range(range.clone(), text.to_string(), cx);
+        self.replace_range(range.clone(), text.to_string(), context);
 
-        // Move cursor to end of inserted text
+        // Handle case where a new headline is being created with ' '
+        if let EditLocation::Cursor(cursor) = self.edit_location.clone() {
+            let line = self.buffer.content.line(cursor.position.y);
+
+            if let LineType::HeadlineStart(level) = line.kind {
+                // The reason it's not level + 1 is that:
+                // Cursor position.x is 0-indexed
+                // While level is not
+                if cursor.position.x == (level as isize) && text == " " {
+                    self.move_to(EditorPosition::new(cursor.position.y, 0), 0, context);
+                    return;
+                }
+            }
+        }
+
         let offset = self.buffer.content.position_to_offset(range.start.clone()) + text.len();
         let end_position = self.buffer.content.offset_to_position(offset);
 
-        self.move_to(end_position.clone(), end_position.x, cx);
+        self.move_to(end_position.clone(), end_position.x, context);
     }
 
     fn replace_and_mark_text_in_range(
