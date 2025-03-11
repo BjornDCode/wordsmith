@@ -141,7 +141,7 @@ impl Content {
 
         offset += position.x;
 
-        return offset as usize;
+        return std::cmp::max(0, offset) as usize;
     }
 
     pub fn offset_to_position(&self, offset: usize) -> EditorPosition {

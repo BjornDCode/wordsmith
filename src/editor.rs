@@ -881,9 +881,8 @@ impl ViewInputHandler for Editor {
         self.replace_range(range.clone(), text.to_string(), cx);
 
         // Move cursor to end of inserted text
-        let end_position = self.buffer.content.offset_to_position(
-            self.buffer.content.position_to_offset(range.start.clone()) + text.len(),
-        );
+        let offset = self.buffer.content.position_to_offset(range.start.clone()) + text.len();
+        let end_position = self.buffer.content.offset_to_position(offset);
 
         self.move_to(end_position.clone(), end_position.x, cx);
     }
