@@ -83,7 +83,7 @@ impl Content {
         let mut is_inside_headline = false;
 
         for raw in raw_lines {
-            let is_start_of_headline = raw.starts_with('#');
+            let is_start_of_headline = is_headline(raw.clone());
 
             if is_start_of_headline {
                 is_inside_headline = true;
@@ -167,4 +167,18 @@ impl Content {
 
         return EditorPosition::new(y, x as isize);
     }
+}
+
+fn is_headline(line: String) -> bool {
+    let trimmed = line.trim_start();
+
+    if !trimmed.starts_with('#') {
+        return false;
+    }
+
+    let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
+
+    return hash_count > 0
+        && hash_count < trimmed.len()
+        && trimmed.chars().nth(hash_count) == Some(' ');
 }
