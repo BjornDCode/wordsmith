@@ -1,6 +1,5 @@
 mod buffer;
 mod content;
-mod display_map;
 mod editor;
 mod text;
 

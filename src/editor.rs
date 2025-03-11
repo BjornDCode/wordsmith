@@ -558,7 +558,28 @@ impl Editor {
     }
 
     fn paste(&mut self, _: &Paste, context: &mut ViewContext<Self>) {
-        println!("Paste");
+        let clipboard_item = context
+            .read_from_clipboard()
+            .unwrap_or(ClipboardItem::new_string("".into()));
+        let range = match self.edit_location.clone() {
+            EditLocation::Cursor(cursor) => cursor.position.clone()..cursor.position,
+            EditLocation::Selection(selection) => selection.smallest()..selection.largest(),
+        };
+        let mut content = String::new();
+
+        for entry in clipboard_item.entries() {
+            if let gpui::ClipboardEntry::String(clipboard_string) = entry {
+                content.push_str(clipboard_string.text());
+            }
+        }
+
+        self.replace_range(range.clone(), content.clone(), context);
+
+        let mut offset = self.buffer.content.position_to_offset(range.start);
+        offset += content.len();
+        let position = self.buffer.content.offset_to_position(offset);
+
+        self.move_to(position.clone(), position.x, context);
     }
 
     fn move_to(
