@@ -506,8 +506,9 @@ impl Editor {
                 let range = smallest.clone()..selection.largest();
 
                 self.replace_range(range, "".into(), context);
+                let x = std::cmp::max(0, smallest.x);
 
-                self.move_to(smallest.clone(), smallest.x, context);
+                self.move_to(EditorPosition::new(smallest.y, x), x, context);
             }
         }
     }
