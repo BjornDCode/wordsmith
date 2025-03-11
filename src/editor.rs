@@ -536,7 +536,13 @@ impl Editor {
     }
 
     fn copy(&mut self, _: &Copy, context: &mut ViewContext<Self>) {
-        println!("Copy");
+        if let EditLocation::Selection(selection) = self.edit_location.clone() {
+            let range = selection.smallest()..selection.largest();
+
+            let text = self.read_range(range.clone());
+
+            context.write_to_clipboard(ClipboardItem::new_string(text));
+        }
     }
 
     fn cut(&mut self, _: &Cut, context: &mut ViewContext<Self>) {
