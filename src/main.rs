@@ -65,6 +65,10 @@ actions!(
         RemoveSelection,
         Backspace,
         Enter,
+        // Clipboard
+        Copy,
+        Cut,
+        Paste,
         // File
         Save,
     ]
@@ -85,7 +89,7 @@ impl SetMode {
 fn main() {
     let executable_path = std::env::current_exe().unwrap();
     let executable_dir = executable_path.parent().unwrap();
-    
+
     // Try multiple potential resource paths
     let resource_paths = vec![
         // Dev environment: resources are in the project root
@@ -95,15 +99,15 @@ fn main() {
         // macOS app bundle: resources are in the Resources directory
         executable_dir.join("../Resources/resources"),
     ];
-    
+
     // Find the first path that exists
     let resources_path = resource_paths
         .into_iter()
         .find(|path| path.exists())
         .unwrap_or_else(|| PathBuf::from("resources"));
-    
+
     println!("Using resources path: {:?}", resources_path);
-    
+
     gpui::App::new()
         .with_assets(Assets {
             base: resources_path,
@@ -142,6 +146,9 @@ fn main() {
                 KeyBinding::new("backspace", Backspace, "editor".into()),
                 KeyBinding::new("enter", Enter, "editor".into()),
                 KeyBinding::new("cmd-s", Save, "editor".into()),
+                KeyBinding::new("cmd-c", Copy, "editor".into()),
+                KeyBinding::new("cmd-x", Cut, "editor".into()),
+                KeyBinding::new("cmd-v", Paste, "editor".into()),
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());

@@ -1,21 +1,22 @@
 use std::{cmp::Ordering, ops::Range};
 
 use gpui::{
-    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, ElementInputHandler,
-    FocusHandle, FocusableView, Font, FontWeight, Hsla, PaintQuad, Pixels, Point, ShapedLine,
-    SharedString, Style, TextRun, View, ViewContext, ViewInputHandler,
+    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, ClipboardItem,
+    ClipboardString, ElementInputHandler, FocusHandle, FocusableView, Font, FontWeight, Hsla,
+    PaintQuad, Pixels, Point, ShapedLine, SharedString, Style, TextRun, View, ViewContext,
+    ViewInputHandler,
 };
 
 use crate::{
     buffer::Buffer,
     content::{Content, Line, LineType},
     text::WrappedText,
-    Backspace, Enter, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord, MoveDown,
-    MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, RemoveSelection,
-    Save, SelectAll, SelectBeginningOfFile, SelectBeginningOfLine, SelectBeginningOfWord,
-    SelectDown, SelectEndOfFile, SelectEndOfLine, SelectEndOfWord, SelectLeft, SelectRight,
-    SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_300, COLOR_GRAY_400,
-    COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
+    Backspace, Copy, Cut, Enter, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord,
+    MoveDown, MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, Paste,
+    RemoveSelection, Save, SelectAll, SelectBeginningOfFile, SelectBeginningOfLine,
+    SelectBeginningOfWord, SelectDown, SelectEndOfFile, SelectEndOfLine, SelectEndOfWord,
+    SelectLeft, SelectRight, SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM,
+    COLOR_GRAY_300, COLOR_GRAY_400, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -534,6 +535,26 @@ impl Editor {
         context.notify();
     }
 
+    fn copy(&mut self, _: &Copy, context: &mut ViewContext<Self>) {
+        println!("Copy");
+    }
+
+    fn cut(&mut self, _: &Cut, context: &mut ViewContext<Self>) {
+        if let EditLocation::Selection(selection) = self.edit_location.clone() {
+            let range = selection.smallest()..selection.largest();
+
+            let text = self.read_range(range.clone());
+
+            context.write_to_clipboard(ClipboardItem::new_string(text));
+            self.replace_range(range, "".into(), context);
+            self.move_to(selection.smallest(), selection.smallest().x, context);
+        }
+    }
+
+    fn paste(&mut self, _: &Paste, context: &mut ViewContext<Self>) {
+        println!("Paste");
+    }
+
     fn move_to(
         &mut self,
         position: EditorPosition,
@@ -570,6 +591,14 @@ impl Editor {
         };
 
         self.select(start, end, context);
+    }
+
+    fn read_range(&self, range: Range<EditorPosition>) -> String {
+        let start_offset = self.buffer.content.position_to_offset(range.start);
+        let end_offset = self.buffer.content.position_to_offset(range.end);
+        let range = start_offset..end_offset;
+
+        return self.buffer.content.read_range(range);
     }
 
     fn replace_range(
@@ -809,6 +838,9 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::backspace))
             .on_action(context.listener(Self::enter))
             .on_action(context.listener(Self::save))
+            .on_action(context.listener(Self::copy))
+            .on_action(context.listener(Self::cut))
+            .on_action(context.listener(Self::paste))
             .group("editor-container")
             .w_full()
             .flex()

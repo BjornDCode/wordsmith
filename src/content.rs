@@ -117,6 +117,13 @@ impl Content {
         self.original = self.wrapped.original().to_string().into();
     }
 
+    pub fn read_range(&self, range: Range<usize>) -> String {
+        let text = self.text().to_string();
+        let substring = &text[range.start..range.end];
+
+        return substring.to_string();
+    }
+
     pub fn line(&self, index: usize) -> Line {
         let lines = self.lines();
 
