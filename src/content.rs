@@ -118,10 +118,7 @@ impl Content {
     }
 
     pub fn read_range(&self, range: Range<usize>) -> String {
-        let text = self.text().to_string();
-        let substring = &text[range.start..range.end];
-
-        return substring.to_string();
+        return self.text().read_range(range);
     }
 
     pub fn line(&self, index: usize) -> Line {

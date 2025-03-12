@@ -19,6 +19,12 @@ impl RawText {
     pub fn replace(&mut self, range: Range<usize>, replacement: String) {
         self.text.replace_range(range, &replacement);
     }
+
+    pub fn read_range(&self, range: Range<usize>) -> String {
+        let substring = &self.text[range.start..range.end];
+
+        return substring.to_string();
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +48,15 @@ impl WrappedText {
         let end_offset = self.resolve_offset(range.end);
 
         self.text.replace(start_offset..end_offset, replacement);
+    }
+
+    pub fn read_range(&self, range: Range<usize>) -> String {
+        let start_offset = self.resolve_offset(range.start);
+        let end_offset = self.resolve_offset(range.end);
+
+        let range = start_offset..end_offset;
+
+        return self.text.read_range(range);
     }
 
     fn resolve_offset(&self, offset: usize) -> usize {
