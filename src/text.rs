@@ -61,7 +61,8 @@ impl WrappedText {
 
     fn resolve_offset(&self, offset: usize) -> usize {
         let (_, wrap_points) = self.to_string_with_wrap_points();
-        let wrap_points_before_offset = wrap_points.iter().filter(|point| **point < offset).count();
+        let wrap_points_before_offset =
+            wrap_points.iter().filter(|point| **point <= offset).count();
 
         return offset - wrap_points_before_offset;
     }

@@ -493,6 +493,15 @@ impl Editor {
 
                         self.replace_range(range, "".into(), context);
                     }
+                    (LineType::Normal, 0) => {
+                        let position =
+                            self.left_position(self.left_position(cursor.position.clone()));
+                        let range = position.clone()..cursor.position;
+
+                        self.replace_range(range, "".into(), context);
+
+                        self.move_to(position.clone(), position.x, context);
+                    }
                     _ => {
                         let position = self.left_position(cursor.position.clone());
                         let range = position.clone()..cursor.position;
