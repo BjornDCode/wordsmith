@@ -152,10 +152,16 @@ fn main() {
 
             context.on_action(|_: &Quit, context| context.quit());
 
-            context.set_menus(vec![Menu {
-                name: "test".into(),
-                items: vec![MenuItem::action("Quit", Quit)],
-            }]);
+            context.set_menus(vec![
+                Menu {
+                    name: "Wordsmith".into(),
+                    items: vec![MenuItem::action("Quit", Quit)],
+                },
+                Menu {
+                    name: "File".into(),
+                    items: vec![MenuItem::action("Save", Save)],
+                },
+            ]);
 
             let path = "/Users/bjornlindholm/Documents/test.md";
             let buffer = Buffer::from_path(path.into());
