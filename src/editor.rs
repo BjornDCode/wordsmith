@@ -345,12 +345,12 @@ impl Editor {
                 );
             }
             EditLocation::Selection(selection) => match selection.direction() {
-                SelectionDirection::Backwards => self.select_to(
+                SelectionDirection::Backwards => self.select(
+                    selection.start,
                     self.down_position(selection.end.clone(), selection.end.x),
                     context,
                 ),
-                SelectionDirection::Forwards => self.select(
-                    selection.start.clone(),
+                SelectionDirection::Forwards => self.select_to(
                     self.down_position(selection.end.clone(), selection.start.x),
                     context,
                 ),
@@ -596,12 +596,12 @@ impl Editor {
             preferred_x,
         });
 
-        self.update_viewport(position);
+        self.ensure_in_viewport(position);
 
         context.notify();
     }
 
-    fn update_viewport(&mut self, position: EditorPosition) {
+    fn ensure_in_viewport(&mut self, position: EditorPosition) {
         let height = self.scroll_handle.bounds().size.height;
         let offset = self.scroll_handle.offset().y.abs();
         let current_line_offset = px(position.y as f32) * LINE_HEIGHT;
@@ -649,6 +649,8 @@ impl Editor {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.start,
         };
+
+        self.ensure_in_viewport(end.clone());
 
         self.select(start, end, context);
     }
