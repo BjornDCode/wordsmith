@@ -205,6 +205,8 @@ impl WrappedText {
 
                 continue;
             }
+
+            offset += 1;
         }
 
         return (output, wrap_points);
