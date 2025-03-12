@@ -196,6 +196,11 @@ impl WrappedText {
 
                 offset += soft_wrapped_line.len();
 
+                // To add the soft-wrap newline character as well
+                // It not then the wrap points will point to offsets in the original text
+                // We want them to point to offsets in the wrapped text
+                offset += 1;
+
                 wrap_points.push(offset);
 
                 continue;
