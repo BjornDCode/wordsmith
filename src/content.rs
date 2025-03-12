@@ -61,7 +61,14 @@ impl Content {
     pub fn new(original: SharedString) -> Content {
         let wrapped = WrappedText::new(original.clone().into());
 
-        Content { original, wrapped }
+        return Content { original, wrapped };
+    }
+
+    pub fn empty() -> Content {
+        return Content {
+            original: SharedString::new_static(""),
+            wrapped: WrappedText::empty(),
+        };
     }
 
     pub fn to_string(&self) -> String {
@@ -129,6 +136,11 @@ impl Content {
 
     pub fn position_to_offset(&self, position: EditorPosition) -> usize {
         let lines = self.lines();
+
+        if lines.is_empty() {
+            return 0;
+        }
+
         let previous_lines = lines.iter().take(position.y);
         let mut offset: isize = 0;
 

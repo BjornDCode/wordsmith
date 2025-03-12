@@ -9,7 +9,13 @@ pub struct RawText {
 
 impl RawText {
     pub fn new(text: String) -> RawText {
-        RawText { text }
+        return RawText { text };
+    }
+
+    pub fn empty() -> RawText {
+        return RawText {
+            text: String::new(),
+        };
     }
 
     pub fn to_string(&self) -> String {
@@ -34,9 +40,15 @@ pub struct WrappedText {
 
 impl WrappedText {
     pub fn new(text: String) -> WrappedText {
-        WrappedText {
+        return WrappedText {
             text: RawText::new(text),
-        }
+        };
+    }
+
+    pub fn empty() -> WrappedText {
+        return WrappedText {
+            text: RawText::empty(),
+        };
     }
 
     pub fn original(&self) -> RawText {

@@ -163,9 +163,6 @@ fn main() {
                 },
             ]);
 
-            let path = "/Users/bjornlindholm/Documents/test.md";
-            let buffer = Buffer::from_path(path.into());
-
             let window = context
                 .open_window(
                     WindowOptions {
@@ -173,8 +170,9 @@ fn main() {
                         ..Default::default()
                     },
                     |context| {
-                        let editor =
-                            context.new_view(|context| Editor::new(buffer, context.focus_handle()));
+                        let editor = context.new_view(|context| {
+                            Editor::new(Buffer::empty(), context.focus_handle())
+                        });
 
                         context.new_view(|context| Wordsmith::new(context.focus_handle(), editor))
                     },
