@@ -9,8 +9,8 @@ use buffer::Buffer;
 use editor::Editor;
 use gpui::{
     actions, div, img, impl_actions, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource,
-    Bounds, FocusHandle, FocusableView, KeyBinding, MouseButton, SharedString, View, ViewContext,
-    WindowBounds, WindowOptions,
+    Bounds, FocusHandle, FocusableView, KeyBinding, Menu, MenuItem, MouseButton, SharedString,
+    View, ViewContext, WindowBounds, WindowOptions,
 };
 
 const COLOR_WHITE: u32 = 0xffffff;
@@ -151,6 +151,11 @@ fn main() {
             ]);
 
             context.on_action(|_: &Quit, context| context.quit());
+
+            context.set_menus(vec![Menu {
+                name: "test".into(),
+                items: vec![MenuItem::action("Quit", Quit)],
+            }]);
 
             let path = "/Users/bjornlindholm/Documents/test.md";
             let buffer = Buffer::from_path(path.into());

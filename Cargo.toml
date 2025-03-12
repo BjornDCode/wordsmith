@@ -1,5 +1,5 @@
 [package]
-name = "wordsmith"
+name = "Wordsmith"
 version = "0.0.1"
 edition = "2021"
 build = "build.rs"
