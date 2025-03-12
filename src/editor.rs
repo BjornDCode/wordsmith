@@ -607,12 +607,21 @@ impl Editor {
         let current_line_offset = px(position.y as f32) * LINE_HEIGHT;
         let viewport = offset..height + offset;
 
-        if current_line_offset < viewport.start - EDITOR_VERTICAL_MARGIN {
-            self.scroll_to(-(current_line_offset + EDITOR_VERTICAL_MARGIN));
+        // Instead of scrolling right when we reach the edge
+        // We'll do it when within the following margin
+        let line_margin = LINE_HEIGHT * 3;
+
+        if current_line_offset - line_margin < viewport.start - EDITOR_VERTICAL_MARGIN {
+            self.scroll_to(-(current_line_offset + EDITOR_VERTICAL_MARGIN - line_margin));
         }
 
-        if current_line_offset + LINE_HEIGHT > viewport.end - EDITOR_VERTICAL_MARGIN {
-            self.scroll_to(-(current_line_offset - height + LINE_HEIGHT + EDITOR_VERTICAL_MARGIN));
+        if current_line_offset + LINE_HEIGHT + line_margin > viewport.end - EDITOR_VERTICAL_MARGIN {
+            self.scroll_to(
+                -(current_line_offset - height
+                    + LINE_HEIGHT
+                    + EDITOR_VERTICAL_MARGIN
+                    + line_margin),
+            );
         }
     }
 
