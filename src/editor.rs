@@ -3,8 +3,8 @@ use std::{cmp::Ordering, ops::Range};
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, ClipboardItem,
     ClipboardString, ElementInputHandler, FocusHandle, FocusableView, Font, FontWeight, Hsla,
-    PaintQuad, Pixels, Point, ShapedLine, SharedString, Style, TextRun, View, ViewContext,
-    ViewInputHandler,
+    PaintQuad, Pixels, Point, ScrollHandle, ShapedLine, SharedString, Style, TextRun, View,
+    ViewContext, ViewInputHandler,
 };
 
 use crate::{
@@ -23,13 +23,15 @@ const CHARACTER_WIDTH: Pixels = px(10.24);
 const LINE_HEIGHT: Pixels = px(24.);
 pub const CHARACTER_COUNT_PER_LINE: usize = 50;
 const EDITOR_HORIZONTAL_MARGIN: Pixels = px(71.68); // 7 (6 headline markers + 1 space) * CHARACTERWIDTH;
+const EDITOR_VERTICAL_MARGIN: Pixels = px(32.);
 const EDITOR_BASE_WIDTH: Pixels = px(512.);
 pub const CONTAINER_WIDTH: Pixels = px(655.36); // Base width + Margin * 2
 
 pub struct Editor {
-    focus_handle: FocusHandle,
     buffer: Buffer,
     edit_location: EditLocation,
+    focus_handle: FocusHandle,
+    scroll_handle: ScrollHandle,
 }
 
 #[derive(Debug, Clone)]
@@ -158,9 +160,10 @@ impl Editor {
         // ));
 
         return Editor {
-            focus_handle,
             buffer,
             edit_location,
+            focus_handle,
+            scroll_handle: ScrollHandle::new(),
         };
     }
 
@@ -589,11 +592,32 @@ impl Editor {
         context: &mut ViewContext<Self>,
     ) {
         self.edit_location = EditLocation::Cursor(Cursor {
-            position,
+            position: position.clone(),
             preferred_x,
         });
 
+        self.update_viewport(position);
+
         context.notify();
+    }
+
+    fn update_viewport(&mut self, position: EditorPosition) {
+        let height = self.scroll_handle.bounds().size.height;
+        let offset = self.scroll_handle.offset().y.abs();
+        let current_line_offset = px(position.y as f32) * LINE_HEIGHT;
+        let viewport = offset..height + offset;
+
+        if current_line_offset < viewport.start - EDITOR_VERTICAL_MARGIN {
+            self.scroll_to(-(current_line_offset + EDITOR_VERTICAL_MARGIN));
+        }
+
+        if current_line_offset + LINE_HEIGHT > viewport.end - EDITOR_VERTICAL_MARGIN {
+            self.scroll_to(-(current_line_offset - height + LINE_HEIGHT + EDITOR_VERTICAL_MARGIN));
+        }
+    }
+
+    fn scroll_to(&mut self, y: Pixels) {
+        self.scroll_handle.set_offset(Point::new(Pixels::ZERO, y));
     }
 
     fn select(
@@ -877,8 +901,9 @@ impl gpui::Render for Editor {
                     .id("editor")
                     .w(CONTAINER_WIDTH)
                     .line_height(LINE_HEIGHT)
-                    .py_8()
+                    .py(EDITOR_VERTICAL_MARGIN)
                     .overflow_y_scroll()
+                    .track_scroll(&self.scroll_handle)
                     .child(EditorElement {
                         input: context.view().clone(),
                     }),
