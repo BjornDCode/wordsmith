@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, ops::Range};
+use std::{cmp::Ordering, env, ops::Range, path::PathBuf};
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, ClipboardItem,
@@ -13,7 +13,7 @@ use crate::{
     text::WrappedText,
     Backspace, Copy, Cut, Enter, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord,
     MoveDown, MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, NewFile,
-    OpenFile, Paste, RemoveSelection, Save, SelectAll, SelectBeginningOfFile,
+    OpenFile, Paste, RemoveSelection, Save, SaveAs, SelectAll, SelectBeginningOfFile,
     SelectBeginningOfLine, SelectBeginningOfWord, SelectDown, SelectEndOfFile, SelectEndOfLine,
     SelectEndOfWord, SelectLeft, SelectRight, SelectUp, SetBuffer, COLOR_BLUE_DARK,
     COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_300, COLOR_GRAY_400, COLOR_GRAY_700,
@@ -280,71 +280,68 @@ impl Editor {
     ) where
         F: FnOnce(&mut Editor, &mut ViewContext<Self>) + Send + 'static,
     {
-        let paths = context.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-        });
+        let path = get_documents_folder_path();
+        let result = context.prompt_for_new_path(path.as_path());
 
         let editor = context.view().clone();
 
         context
             .spawn(move |_, mut context| async move {
-                let result = paths.await.unwrap().unwrap();
+                let result = result.await;
+                // Handle the result of the prompt
+                if let Ok(Ok(result)) = result {
+                    if let Some(path) = result {
+                        // Check if the file has a .md extension
+                        if path.extension().is_none() || path.extension().unwrap() != "md" {
+                            // If not, show an error
+                            let error_prompt = context.prompt(
+                                PromptLevel::Critical,
+                                "File must have a .md extension",
+                                None,
+                                &["OK"],
+                            );
 
-                if let Some(paths) = result {
-                    let path = paths.first().unwrap();
+                            context
+                                .foreground_executor()
+                                .spawn(async move {
+                                    error_prompt.await.ok();
+                                })
+                                .detach();
+                        } else {
+                            context
+                                .update_view(&editor, |editor, cx| {
+                                    // Use the set_file method to associate a file with the buffer and save
+                                    match editor.buffer.set_file(path.clone()) {
+                                        Ok(_) => {
+                                            // File was created and saved successfully
+                                            cx.notify();
 
-                    // Check if the file has a .md extension
-                    if path.extension().is_none() || path.extension().unwrap() != "md" {
-                        // If not, show an error
-                        let error_prompt = context.prompt(
-                            PromptLevel::Critical,
-                            "File must have a .md extension",
-                            None,
-                            &["OK"],
-                        );
+                                            // Execute callback if provided
+                                            if let Some(callback) = callback {
+                                                callback(editor, cx);
+                                            }
+                                        }
+                                        Err(error) => {
+                                            // Show an error if file creation failed
+                                            let error_message =
+                                                format!("Failed to save file: {:?}", error);
+                                            let error_prompt = cx.prompt(
+                                                PromptLevel::Critical,
+                                                &error_message,
+                                                None,
+                                                &["OK"],
+                                            );
 
-                        context
-                            .foreground_executor()
-                            .spawn(async move {
-                                error_prompt.await.ok();
-                            })
-                            .detach();
-                    } else {
-                        context
-                            .update_view(&editor, |editor, cx| {
-                                // Use the set_file method to associate a file with the buffer and save
-                                match editor.buffer.set_file(path.clone()) {
-                                    Ok(_) => {
-                                        // File was created and saved successfully
-                                        cx.notify();
-
-                                        // Execute callback if provided
-                                        if let Some(callback) = callback {
-                                            callback(editor, cx);
+                                            cx.foreground_executor()
+                                                .spawn(async move {
+                                                    error_prompt.await.ok();
+                                                })
+                                                .detach();
                                         }
                                     }
-                                    Err(error) => {
-                                        // Show an error if file creation failed
-                                        let error_message =
-                                            format!("Failed to save file: {:?}", error);
-                                        let error_prompt = cx.prompt(
-                                            PromptLevel::Critical,
-                                            &error_message,
-                                            None,
-                                            &["OK"],
-                                        );
-
-                                        cx.foreground_executor()
-                                            .spawn(async move {
-                                                error_prompt.await.ok();
-                                            })
-                                            .detach();
-                                    }
-                                }
-                            })
-                            .ok();
+                                })
+                                .ok();
+                        }
                     }
                 }
             })
@@ -793,6 +790,10 @@ impl Editor {
         }
     }
 
+    fn save_as(&mut self, _: &SaveAs, context: &mut ViewContext<Self>) {
+        self.prompt_to_save_file(context);
+    }
+
     fn copy(&mut self, _: &Copy, context: &mut ViewContext<Self>) {
         if let EditLocation::Selection(selection) = self.edit_location.clone() {
             let range = selection.smallest()..selection.largest();
@@ -1130,6 +1131,8 @@ impl gpui::Render for Editor {
             .key_context("editor")
             .on_action(context.listener(Self::new_file))
             .on_action(context.listener(Self::open_file))
+            .on_action(context.listener(Self::save))
+            .on_action(context.listener(Self::save_as))
             .on_action(context.listener(Self::set_buffer))
             .on_action(context.listener(Self::move_left))
             .on_action(context.listener(Self::move_right))
@@ -1155,7 +1158,6 @@ impl gpui::Render for Editor {
             .on_action(context.listener(Self::remove_selection))
             .on_action(context.listener(Self::backspace))
             .on_action(context.listener(Self::enter))
-            .on_action(context.listener(Self::save))
             .on_action(context.listener(Self::copy))
             .on_action(context.listener(Self::cut))
             .on_action(context.listener(Self::paste))
@@ -1502,4 +1504,10 @@ impl Element for EditorElement {
                 .unwrap();
         }
     }
+}
+
+fn get_documents_folder_path() -> PathBuf {
+    let home = env::var("HOME").unwrap_or_else(|_| String::from("/Users/Shared"));
+
+    return PathBuf::from(home).join("Documents");
 }
