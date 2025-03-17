@@ -273,7 +273,6 @@ impl Editor {
         );
     }
 
-
     fn prompt_to_save_file_with_callback<F>(
         &self,
         context: &mut ViewContext<Self>,
@@ -328,7 +327,8 @@ impl Editor {
                                     }
                                     Err(error) => {
                                         // Show an error if file creation failed
-                                        let error_message = format!("Failed to save file: {:?}", error);
+                                        let error_message =
+                                            format!("Failed to save file: {:?}", error);
                                         let error_prompt = cx.prompt(
                                             PromptLevel::Critical,
                                             &error_message,
@@ -1115,7 +1115,6 @@ impl Editor {
         // Go to the first word in the next line
         return EditorPosition::new(point.y + 1, next_line.beginning() + start_offset as isize);
     }
-
 }
 
 impl FocusableView for Editor {
