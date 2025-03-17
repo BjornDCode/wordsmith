@@ -273,6 +273,7 @@ impl Editor {
         );
     }
 
+
     fn prompt_to_save_file_with_callback<F>(
         &self,
         context: &mut ViewContext<Self>,
@@ -295,43 +296,60 @@ impl Editor {
                 if let Some(paths) = result {
                     let path = paths.first().unwrap();
 
-                    context
-                        .update_view(&editor, |editor, cx| {
-                            // Use the set_file method to associate a file with the buffer and save
-                            match editor.buffer.set_file(path.clone()) {
-                                Ok(_) => {
-                                    // File was created and saved successfully
-                                    cx.notify();
+                    // Check if the file has a .md extension
+                    if path.extension().is_none() || path.extension().unwrap() != "md" {
+                        // If not, show an error
+                        let error_prompt = context.prompt(
+                            PromptLevel::Critical,
+                            "File must have a .md extension",
+                            None,
+                            &["OK"],
+                        );
 
-                                    // Execute callback if provided
-                                    if let Some(callback) = callback {
-                                        callback(editor, cx);
+                        context
+                            .foreground_executor()
+                            .spawn(async move {
+                                error_prompt.await.ok();
+                            })
+                            .detach();
+                    } else {
+                        context
+                            .update_view(&editor, |editor, cx| {
+                                // Use the set_file method to associate a file with the buffer and save
+                                match editor.buffer.set_file(path.clone()) {
+                                    Ok(_) => {
+                                        // File was created and saved successfully
+                                        cx.notify();
+
+                                        // Execute callback if provided
+                                        if let Some(callback) = callback {
+                                            callback(editor, cx);
+                                        }
+                                    }
+                                    Err(error) => {
+                                        // Show an error if file creation failed
+                                        let error_message = format!("Failed to save file: {:?}", error);
+                                        let error_prompt = cx.prompt(
+                                            PromptLevel::Critical,
+                                            &error_message,
+                                            None,
+                                            &["OK"],
+                                        );
+
+                                        cx.foreground_executor()
+                                            .spawn(async move {
+                                                error_prompt.await.ok();
+                                            })
+                                            .detach();
                                     }
                                 }
-                                Err(error) => {
-                                    // Show an error if file creation failed
-                                    let error_message = format!("Failed to save file: {:?}", error);
-                                    let error_prompt = cx.prompt(
-                                        PromptLevel::Critical,
-                                        &error_message,
-                                        None,
-                                        &["OK"],
-                                    );
-
-                                    cx.foreground_executor()
-                                        .spawn(async move {
-                                            error_prompt.await.ok();
-                                        })
-                                        .detach();
-                                }
-                            }
-                        })
-                        .ok();
+                            })
+                            .ok();
+                    }
                 }
             })
             .detach();
     }
-
     fn prompt_to_open_file(&self, context: &mut ViewContext<Self>) {
         let paths = context.prompt_for_paths(PathPromptOptions {
             files: true,
@@ -346,7 +364,7 @@ impl Editor {
                 if let Some(paths) = result {
                     let path = paths.first().unwrap();
 
-                    if path.extension().unwrap() != "md" {
+                    if path.extension().is_none() || path.extension().unwrap() != "md" {
                         let prompt = context.prompt(
                             PromptLevel::Critical,
                             "Can only open .md files",
@@ -360,13 +378,14 @@ impl Editor {
                                 prompt.await.ok();
                             })
                             .detach();
+                    } else {
+                        // Only dispatch the SetBuffer action if the file has a .md extension
+                        context
+                            .update(|context| {
+                                context.dispatch_action(Box::new(SetBuffer::new(path.clone())));
+                            })
+                            .unwrap();
                     }
-
-                    context
-                        .update(|context| {
-                            context.dispatch_action(Box::new(SetBuffer::new(path.clone())));
-                        })
-                        .unwrap();
                 }
             })
             .detach();
@@ -1096,6 +1115,7 @@ impl Editor {
         // Go to the first word in the next line
         return EditorPosition::new(point.y + 1, next_line.beginning() + start_offset as isize);
     }
+
 }
 
 impl FocusableView for Editor {
