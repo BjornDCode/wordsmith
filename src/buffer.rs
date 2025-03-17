@@ -40,7 +40,7 @@ impl Buffer {
         };
     }
 
-    pub fn save(&mut self) {
+    pub fn save(&mut self) -> Result<(), SaveError> {
         let content = self.content.to_string();
 
         match &mut self.file {
@@ -51,13 +51,10 @@ impl Buffer {
                 file.write(content.as_bytes()).unwrap();
 
                 self.is_saved = true;
+                Ok(())
             }
-            None => {
-                // If there's no file, we can't save directly
-                // This case should be handled by prompting the user for a save location
-                // The caller should handle this case by calling prompt_to_save_file
-            }
-        };
+            None => Err(SaveError::NoFileAssociated),
+        }
     }
 
     pub fn content(&self) -> Content {
@@ -72,7 +69,7 @@ impl Buffer {
         return self.file.is_some();
     }
 
-    pub fn set_file(&mut self, path: PathBuf) -> Result<(), std::io::Error> {
+    pub fn set_file(&mut self, path: PathBuf) -> Result<(), SaveError> {
         // Open or create the file
         let file = OpenOptions::new()
             .read(true)
@@ -84,7 +81,7 @@ impl Buffer {
         self.file = Some(file);
 
         // Save the content to the new file
-        self.save();
+        self.save()?;
 
         Ok(())
     }
@@ -115,5 +112,17 @@ impl Buffer {
         self.is_saved = false;
 
         return self.content.replace(range, replacement);
+    }
+}
+
+#[derive(Debug)]
+pub enum SaveError {
+    NoFileAssociated,
+    IoError(std::io::Error),
+}
+
+impl From<std::io::Error> for SaveError {
+    fn from(error: std::io::Error) -> Self {
+        SaveError::IoError(error)
     }
 }

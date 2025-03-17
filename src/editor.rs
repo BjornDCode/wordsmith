@@ -224,11 +224,30 @@ impl Editor {
                                     );
                                 } else {
                                     // Otherwise save directly to the existing file
-                                    editor.buffer.save();
-                                    cx.notify();
+                                    match editor.buffer.save() {
+                                        Ok(_) => {
+                                            cx.notify();
+                                            // Then open a new file
+                                            editor.prompt_to_open_file(cx);
+                                        }
+                                        Err(err) => {
+                                            // This shouldn't happen since we checked has_file(), but handle it anyway
+                                            let error_message =
+                                                format!("Failed to save file: {:?}", err);
+                                            let error_prompt = cx.prompt(
+                                                PromptLevel::Critical,
+                                                &error_message,
+                                                None,
+                                                &["OK"],
+                                            );
 
-                                    // Then open a new file
-                                    editor.prompt_to_open_file(cx);
+                                            cx.foreground_executor()
+                                                .spawn(async move {
+                                                    error_prompt.await.ok();
+                                                })
+                                                .detach();
+                                        }
+                                    }
                                 }
                             })
                             .ok();
@@ -289,9 +308,9 @@ impl Editor {
                                         callback(editor, cx);
                                     }
                                 }
-                                Err(err) => {
+                                Err(error) => {
                                     // Show an error if file creation failed
-                                    let error_message = format!("Failed to save file: {}", err);
+                                    let error_message = format!("Failed to save file: {:?}", error);
                                     let error_prompt = cx.prompt(
                                         PromptLevel::Critical,
                                         &error_message,
@@ -734,8 +753,24 @@ impl Editor {
             self.prompt_to_save_file(context);
         } else {
             // If there is a file, save directly
-            self.buffer.save();
-            context.notify();
+            match self.buffer.save() {
+                Ok(_) => {
+                    context.notify();
+                }
+                Err(err) => {
+                    // This shouldn't happen since we checked has_file(), but handle it anyway
+                    let error_message = format!("Failed to save file: {:?}", err);
+                    let error_prompt =
+                        context.prompt(PromptLevel::Critical, &error_message, None, &["OK"]);
+
+                    context
+                        .foreground_executor()
+                        .spawn(async move {
+                            error_prompt.await.ok();
+                        })
+                        .detach();
+                }
+            }
         }
     }
 
