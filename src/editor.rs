@@ -15,8 +15,8 @@ use crate::{
     MoveDown, MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, Paste,
     RemoveSelection, Save, SelectAll, SelectBeginningOfFile, SelectBeginningOfLine,
     SelectBeginningOfWord, SelectDown, SelectEndOfFile, SelectEndOfLine, SelectEndOfWord,
-    SelectLeft, SelectRight, SelectUp, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM,
-    COLOR_GRAY_300, COLOR_GRAY_400, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
+    SelectLeft, SelectRight, SelectUp, SetBuffer, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT,
+    COLOR_BLUE_MEDIUM, COLOR_GRAY_300, COLOR_GRAY_400, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -165,6 +165,14 @@ impl Editor {
             focus_handle,
             scroll_handle: ScrollHandle::new(),
         };
+    }
+
+    fn set_buffer(&mut self, action: &SetBuffer, context: &mut ViewContext<Self>) {
+        let buffer = Buffer::from_path(action.path.clone());
+
+        self.buffer = buffer;
+
+        context.notify();
     }
 
     fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
@@ -884,6 +892,7 @@ impl gpui::Render for Editor {
         div()
             .track_focus(&self.focus_handle(context))
             .key_context("editor")
+            .on_action(context.listener(Self::set_buffer))
             .on_action(context.listener(Self::move_left))
             .on_action(context.listener(Self::move_right))
             .on_action(context.listener(Self::move_up))

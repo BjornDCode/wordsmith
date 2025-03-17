@@ -1,4 +1,5 @@
 use std::io::Seek;
+use std::path::PathBuf;
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
@@ -19,7 +20,7 @@ impl Buffer {
         };
     }
 
-    pub fn from_path(path: String) -> Buffer {
+    pub fn from_path(path: PathBuf) -> Buffer {
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)

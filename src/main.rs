@@ -3,14 +3,14 @@ mod content;
 mod editor;
 mod text;
 
-use std::{fs, path::PathBuf};
+use std::{fs, ops::Index, path::PathBuf};
 
 use buffer::Buffer;
 use editor::Editor;
 use gpui::{
     actions, div, img, impl_actions, prelude::*, px, rems, rgb, size, svg, AppContext, AssetSource,
-    Bounds, FocusHandle, FocusableView, KeyBinding, Menu, MenuItem, MouseButton, SharedString,
-    View, ViewContext, WindowBounds, WindowOptions,
+    Bounds, FocusHandle, FocusableView, KeyBinding, Menu, MenuItem, MouseButton, PathPromptOptions,
+    PromptLevel, SharedString, View, ViewContext, WindowBounds, WindowOptions,
 };
 
 const COLOR_WHITE: u32 = 0xffffff;
@@ -70,13 +70,25 @@ actions!(
         Paste,
         // File
         Save,
+        OpenFile,
     ]
 );
-impl_actions!(app, [SetMode]);
+impl_actions!(app, [SetMode, SetBuffer]);
 
 #[derive(Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 struct SetMode {
     mode: Mode,
+}
+
+#[derive(Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+struct SetBuffer {
+    path: PathBuf,
+}
+
+impl SetBuffer {
+    pub fn new(path: PathBuf) -> SetBuffer {
+        return SetBuffer { path };
+    }
 }
 
 impl SetMode {
@@ -144,13 +156,15 @@ fn main() {
                 KeyBinding::new("escape", RemoveSelection, "editor".into()),
                 KeyBinding::new("backspace", Backspace, "editor".into()),
                 KeyBinding::new("enter", Enter, "editor".into()),
-                KeyBinding::new("cmd-s", Save, "editor".into()),
                 KeyBinding::new("cmd-c", Copy, "editor".into()),
                 KeyBinding::new("cmd-x", Cut, "editor".into()),
                 KeyBinding::new("cmd-v", Paste, "editor".into()),
+                KeyBinding::new("cmd-s", Save, None),
+                KeyBinding::new("cmd-o", OpenFile, None),
             ]);
 
-            context.on_action(|_: &Quit, context| context.quit());
+            context.on_action(quit);
+            context.on_action(open_file);
 
             context.set_menus(vec![
                 Menu {
@@ -159,7 +173,10 @@ fn main() {
                 },
                 Menu {
                     name: "File".into(),
-                    items: vec![MenuItem::action("Save", Save)],
+                    items: vec![
+                        MenuItem::action("Save", Save),
+                        MenuItem::action("Open...", OpenFile),
+                    ],
                 },
             ]);
 
@@ -410,4 +427,65 @@ fn radio_button(
                 .child(img("images/wip.png").w(px(21.)).h(px(12.)))
                 .when(!disabled, |this| this.invisible()),
         ])
+}
+
+fn quit(_: &Quit, context: &mut AppContext) {
+    context.quit();
+}
+
+fn open_file(_: &OpenFile, context: &mut AppContext) {
+    let paths = context.prompt_for_paths(PathPromptOptions {
+        files: true,
+        directories: false,
+        multiple: false,
+    });
+
+    context
+        .spawn(|context| async move {
+            match paths.await {
+                Ok(result) => match result {
+                    Ok(paths) => match paths {
+                        Some(paths) => {
+                            let path = paths.first().unwrap();
+
+                            if path.extension().unwrap() != "md" {
+                                context
+                                    .update(|context| {
+                                        let window = context.active_window().unwrap();
+                                        window
+                                            .update(context, |_, context| {
+                                                let prompt = context.prompt(
+                                                    PromptLevel::Critical,
+                                                    "Can only open .md files",
+                                                    None,
+                                                    &["OK"],
+                                                );
+                                                context
+                                                    .foreground_executor()
+                                                    .spawn(async {
+                                                        prompt.await.ok();
+                                                    })
+                                                    .detach();
+                                            })
+                                            .unwrap();
+                                    })
+                                    .unwrap();
+                            }
+
+                            let path = paths.index(0);
+
+                            context
+                                .update(|context| {
+                                    context.dispatch_action(&SetBuffer::new(path.clone()));
+                                })
+                                .unwrap();
+                        }
+                        None => {}
+                    },
+                    Err(_) => todo!(),
+                },
+                Err(_) => todo!(),
+            }
+        })
+        .detach();
 }
