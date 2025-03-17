@@ -166,7 +166,6 @@ fn main() {
             ]);
 
             context.on_action(quit);
-            context.on_action(open_file);
 
             context.set_menus(vec![
                 Menu {
@@ -434,61 +433,4 @@ fn radio_button(
 
 fn quit(_: &Quit, context: &mut AppContext) {
     context.quit();
-}
-
-fn open_file(_: &OpenFile, context: &mut AppContext) {
-    let paths = context.prompt_for_paths(PathPromptOptions {
-        files: true,
-        directories: false,
-        multiple: false,
-    });
-
-    context
-        .spawn(|context| async move {
-            match paths.await {
-                Ok(result) => match result {
-                    Ok(paths) => match paths {
-                        Some(paths) => {
-                            let path = paths.first().unwrap();
-
-                            if path.extension().unwrap() != "md" {
-                                context
-                                    .update(|context| {
-                                        let window = context.active_window().unwrap();
-                                        window
-                                            .update(context, |_, context| {
-                                                let prompt = context.prompt(
-                                                    PromptLevel::Critical,
-                                                    "Can only open .md files",
-                                                    None,
-                                                    &["OK"],
-                                                );
-                                                context
-                                                    .foreground_executor()
-                                                    .spawn(async {
-                                                        prompt.await.ok();
-                                                    })
-                                                    .detach();
-                                            })
-                                            .unwrap();
-                                    })
-                                    .unwrap();
-                            }
-
-                            let path = paths.index(0);
-
-                            context
-                                .update(|context| {
-                                    context.dispatch_action(&SetBuffer::new(path.clone()));
-                                })
-                                .unwrap();
-                        }
-                        None => {}
-                    },
-                    Err(_) => todo!(),
-                },
-                Err(_) => todo!(),
-            }
-        })
-        .detach();
 }

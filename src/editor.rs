@@ -2,9 +2,9 @@ use std::{cmp::Ordering, ops::Range};
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, ClipboardItem,
-    ClipboardString, ElementInputHandler, FocusHandle, FocusableView, Font, FontWeight, Hsla,
-    PaintQuad, Pixels, Point, ScrollHandle, ShapedLine, SharedString, Style, TextRun, View,
-    ViewContext, ViewInputHandler,
+    ElementInputHandler, FocusHandle, FocusableView, Font, FontWeight, Hsla, PaintQuad,
+    PathPromptOptions, Pixels, Point, PromptLevel, ScrollHandle, ShapedLine, SharedString, Style,
+    TextRun, View, ViewContext, ViewInputHandler,
 };
 
 use crate::{
@@ -13,10 +13,11 @@ use crate::{
     text::WrappedText,
     Backspace, Copy, Cut, Enter, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord,
     MoveDown, MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, NewFile,
-    Paste, RemoveSelection, Save, SelectAll, SelectBeginningOfFile, SelectBeginningOfLine,
-    SelectBeginningOfWord, SelectDown, SelectEndOfFile, SelectEndOfLine, SelectEndOfWord,
-    SelectLeft, SelectRight, SelectUp, SetBuffer, COLOR_BLUE_DARK, COLOR_BLUE_LIGHT,
-    COLOR_BLUE_MEDIUM, COLOR_GRAY_300, COLOR_GRAY_400, COLOR_GRAY_700, COLOR_GRAY_800, COLOR_PINK,
+    OpenFile, Paste, RemoveSelection, Save, SelectAll, SelectBeginningOfFile,
+    SelectBeginningOfLine, SelectBeginningOfWord, SelectDown, SelectEndOfFile, SelectEndOfLine,
+    SelectEndOfWord, SelectLeft, SelectRight, SelectUp, SetBuffer, COLOR_BLUE_DARK,
+    COLOR_BLUE_LIGHT, COLOR_BLUE_MEDIUM, COLOR_GRAY_300, COLOR_GRAY_400, COLOR_GRAY_700,
+    COLOR_GRAY_800, COLOR_PINK,
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
@@ -183,6 +184,175 @@ impl Editor {
         context.notify();
     }
 
+    fn open_file(&mut self, _: &OpenFile, context: &mut ViewContext<Self>) {
+        if !self.buffer.pristine() {
+            self.prompt_to_save_before_open(context);
+        } else {
+            self.prompt_to_open_file(context);
+        }
+    }
+
+    fn prompt_to_save_before_open(&self, context: &mut ViewContext<Self>) {
+        let prompt = context.prompt(
+            PromptLevel::Warning,
+            "Do you want to save the file?",
+            None,
+            &["Save", "Don't save", "Cancel"],
+        );
+
+        // Create a clone of self that we can move into the closure
+        let editor = context.view().clone();
+
+        context
+            .spawn(move |_, mut context| async move {
+                let answer = prompt.await.ok();
+
+                match answer {
+                    // Save and then open another file
+                    Some(0) => {
+                        // First save the file
+                        context
+                            .update_view(&editor, |editor, cx| {
+                                // If the buffer has no file, prompt for a save location first
+                                if !editor.buffer.has_file() {
+                                    // Use our callback-based method to save first, then open a new file
+                                    editor.prompt_to_save_file_with_callback(
+                                        cx,
+                                        Some(|editor: &mut Editor, cx: &mut ViewContext<Self>| {
+                                            editor.prompt_to_open_file(cx)
+                                        }),
+                                    );
+                                } else {
+                                    // Otherwise save directly to the existing file
+                                    editor.buffer.save();
+                                    cx.notify();
+
+                                    // Then open a new file
+                                    editor.prompt_to_open_file(cx);
+                                }
+                            })
+                            .ok();
+                    }
+                    // Don't save but open another file
+                    Some(1) => {
+                        context
+                            .update_view(&editor, |editor, cx| {
+                                editor.prompt_to_open_file(cx);
+                            })
+                            .ok();
+                    }
+                    // Cancel
+                    _ => {}
+                };
+            })
+            .detach();
+    }
+
+    fn prompt_to_save_file(&self, context: &mut ViewContext<Self>) {
+        self.prompt_to_save_file_with_callback::<fn(&mut Editor, &mut ViewContext<Self>)>(
+            context, None,
+        );
+    }
+
+    fn prompt_to_save_file_with_callback<F>(
+        &self,
+        context: &mut ViewContext<Self>,
+        callback: Option<F>,
+    ) where
+        F: FnOnce(&mut Editor, &mut ViewContext<Self>) + Send + 'static,
+    {
+        let paths = context.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+        });
+
+        let editor = context.view().clone();
+
+        context
+            .spawn(move |_, mut context| async move {
+                let result = paths.await.unwrap().unwrap();
+
+                if let Some(paths) = result {
+                    let path = paths.first().unwrap();
+
+                    context
+                        .update_view(&editor, |editor, cx| {
+                            // Use the set_file method to associate a file with the buffer and save
+                            match editor.buffer.set_file(path.clone()) {
+                                Ok(_) => {
+                                    // File was created and saved successfully
+                                    cx.notify();
+
+                                    // Execute callback if provided
+                                    if let Some(callback) = callback {
+                                        callback(editor, cx);
+                                    }
+                                }
+                                Err(err) => {
+                                    // Show an error if file creation failed
+                                    let error_message = format!("Failed to save file: {}", err);
+                                    let error_prompt = cx.prompt(
+                                        PromptLevel::Critical,
+                                        &error_message,
+                                        None,
+                                        &["OK"],
+                                    );
+
+                                    cx.foreground_executor()
+                                        .spawn(async move {
+                                            error_prompt.await.ok();
+                                        })
+                                        .detach();
+                                }
+                            }
+                        })
+                        .ok();
+                }
+            })
+            .detach();
+    }
+
+    fn prompt_to_open_file(&self, context: &mut ViewContext<Self>) {
+        let paths = context.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+        });
+
+        context
+            .spawn(|_, mut context| async move {
+                let result = paths.await.unwrap().unwrap();
+
+                if let Some(paths) = result {
+                    let path = paths.first().unwrap();
+
+                    if path.extension().unwrap() != "md" {
+                        let prompt = context.prompt(
+                            PromptLevel::Critical,
+                            "Can only open .md files",
+                            None,
+                            &["OK"],
+                        );
+
+                        context
+                            .foreground_executor()
+                            .spawn(async {
+                                prompt.await.ok();
+                            })
+                            .detach();
+                    }
+
+                    context
+                        .update(|context| {
+                            context.dispatch_action(Box::new(SetBuffer::new(path.clone())));
+                        })
+                        .unwrap();
+                }
+            })
+            .detach();
+    }
+
     fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
@@ -253,7 +423,7 @@ impl Editor {
     fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
         let position = self.end_of_file_position();
 
-        let line = self.buffer.content.line(position.y);
+        let line = self.buffer.line(position.y);
 
         self.move_to(position, line.end(), context);
     }
@@ -500,7 +670,7 @@ impl Editor {
                     return;
                 }
 
-                let line = self.buffer.content.line(cursor.position.y);
+                let line = self.buffer.line(cursor.position.y);
 
                 match (line.clone().kind, cursor.position.x) {
                     (LineType::HeadlineStart(_level), 0) => {
@@ -551,16 +721,22 @@ impl Editor {
         self.replace_range(range.clone(), "\n".into(), context);
 
         let y = range.end.y + 1;
-        let line = self.buffer.content.line(y);
+        let line = self.buffer.line(y);
         let position = EditorPosition::new(y, line.beginning());
 
         self.move_to(position.clone(), position.x, context);
     }
 
     fn save(&mut self, _: &Save, context: &mut ViewContext<Self>) {
-        self.buffer.save();
-
-        context.notify();
+        // Check if the buffer has an associated file
+        if !self.buffer.has_file() {
+            // If there's no file, prompt for a save location
+            self.prompt_to_save_file(context);
+        } else {
+            // If there is a file, save directly
+            self.buffer.save();
+            context.notify();
+        }
     }
 
     fn copy(&mut self, _: &Copy, context: &mut ViewContext<Self>) {
@@ -603,9 +779,9 @@ impl Editor {
 
         self.replace_range(range.clone(), content.clone(), context);
 
-        let mut offset = self.buffer.content.position_to_offset(range.start);
+        let mut offset = self.buffer.position_to_offset(range.start);
         offset += content.len();
-        let position = self.buffer.content.offset_to_position(offset);
+        let position = self.buffer.offset_to_position(offset);
 
         self.move_to(position.clone(), position.x, context);
     }
@@ -681,11 +857,11 @@ impl Editor {
     }
 
     fn read_range(&self, range: Range<EditorPosition>) -> String {
-        let start_offset = self.buffer.content.position_to_offset(range.start);
-        let end_offset = self.buffer.content.position_to_offset(range.end);
+        let start_offset = self.buffer.position_to_offset(range.start);
+        let end_offset = self.buffer.position_to_offset(range.end);
         let range = start_offset..end_offset;
 
-        return self.buffer.content.read_range(range);
+        return self.buffer.read_range(range);
     }
 
     fn replace_range(
@@ -694,18 +870,16 @@ impl Editor {
         replacement: String,
         context: &mut ViewContext<Self>,
     ) {
-        let start_offset = self.buffer.content.position_to_offset(range.start);
-        let end_offset = self.buffer.content.position_to_offset(range.end);
+        let start_offset = self.buffer.position_to_offset(range.start);
+        let end_offset = self.buffer.position_to_offset(range.end);
 
-        self.buffer
-            .content
-            .replace(start_offset..end_offset, replacement);
+        self.buffer.replace(start_offset..end_offset, replacement);
 
         context.notify();
     }
 
     fn left_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.buffer.content.line(point.y);
+        let line = self.buffer.line(point.y);
 
         if point.y == 0 && point.x == line.beginning() {
             return point;
@@ -713,7 +887,7 @@ impl Editor {
 
         if point.x == line.beginning() {
             let new_line_index = point.y - 1;
-            let line = self.buffer.content.line(new_line_index);
+            let line = self.buffer.line(new_line_index);
 
             return EditorPosition::new(new_line_index, line.end());
         }
@@ -722,8 +896,8 @@ impl Editor {
     }
 
     fn right_position(&self, point: EditorPosition) -> EditorPosition {
-        let line_length = self.buffer.content.lines().len();
-        let line = self.buffer.content.line(point.y);
+        let line_length = self.buffer.lines().len();
+        let line = self.buffer.line(point.y);
 
         if point.y == line_length - 1 && point.x == line.end() {
             return point;
@@ -738,11 +912,11 @@ impl Editor {
 
     fn up_position(&self, point: EditorPosition, preferred_x: isize) -> EditorPosition {
         if point.y == 0 {
-            let line = self.buffer.content.line(0);
+            let line = self.buffer.line(0);
             return EditorPosition::new(0, line.beginning());
         }
 
-        let previous_line = self.buffer.content.line(point.y - 1);
+        let previous_line = self.buffer.line(point.y - 1);
 
         let x = previous_line.clamp_x(preferred_x);
 
@@ -750,13 +924,13 @@ impl Editor {
     }
 
     fn down_position(&self, point: EditorPosition, preferred_x: isize) -> EditorPosition {
-        let line = self.buffer.content.line(point.y);
+        let line = self.buffer.line(point.y);
 
-        if point.y == self.buffer.content.lines().len() - 1 {
+        if point.y == self.buffer.lines().len() - 1 {
             return EditorPosition::new(point.y, line.end());
         }
 
-        let next_line = self.buffer.content.line(point.y + 1);
+        let next_line = self.buffer.line(point.y + 1);
 
         let x = next_line.clamp_x(preferred_x);
 
@@ -764,32 +938,32 @@ impl Editor {
     }
 
     fn beginning_of_file_position(&self) -> EditorPosition {
-        let line = self.buffer.content.line(0);
+        let line = self.buffer.line(0);
 
         return EditorPosition::new(0, line.beginning());
     }
 
     fn end_of_file_position(&self) -> EditorPosition {
-        let y = self.buffer.content.lines().len() - 1;
-        let line = self.buffer.content.line(y);
+        let y = self.buffer.lines().len() - 1;
+        let line = self.buffer.line(y);
 
         return EditorPosition::new(y, line.end());
     }
 
     fn beginning_of_line_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.buffer.content.line(point.y);
+        let line = self.buffer.line(point.y);
 
         return EditorPosition::new(point.y, line.beginning());
     }
 
     fn end_of_line_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.buffer.content.line(point.y);
+        let line = self.buffer.line(point.y);
 
         return EditorPosition::new(point.y, line.end());
     }
 
     fn beginning_of_word_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.buffer.content.line(point.y);
+        let line = self.buffer.line(point.y);
         let line_offset = (point.x - line.beginning()) as usize;
 
         // Handle edge case: at beginning of file
@@ -817,7 +991,7 @@ impl Editor {
         }
 
         // Get previous line
-        let previous_line = self.buffer.content.line(point.y - 1);
+        let previous_line = self.buffer.line(point.y - 1);
 
         // Handle edge case: previous line is empty
         if previous_line.text.trim().is_empty() {
@@ -834,7 +1008,7 @@ impl Editor {
     }
 
     fn end_of_word_position(&self, point: EditorPosition) -> EditorPosition {
-        let line = self.buffer.content.line(point.y);
+        let line = self.buffer.line(point.y);
         let line_offset = (point.x - line.beginning()) as usize;
 
         // First attempt: find next word boundary in current line
@@ -854,12 +1028,12 @@ impl Editor {
         // If we're here, we need to look at the next line
 
         // Handle edge case: already at last line
-        if point.y >= self.buffer.content.lines().len() - 1 {
+        if point.y >= self.buffer.lines().len() - 1 {
             return EditorPosition::new(point.y, line.end());
         }
 
         // Get next line
-        let next_line = self.buffer.content.line(point.y + 1);
+        let next_line = self.buffer.line(point.y + 1);
 
         // Handle edge case: next line is empty
         if next_line.text.trim().is_empty() {
@@ -901,6 +1075,7 @@ impl gpui::Render for Editor {
             .track_focus(&self.focus_handle(context))
             .key_context("editor")
             .on_action(context.listener(Self::new_file))
+            .on_action(context.listener(Self::open_file))
             .on_action(context.listener(Self::set_buffer))
             .on_action(context.listener(Self::move_left))
             .on_action(context.listener(Self::move_right))
@@ -990,8 +1165,8 @@ impl ViewInputHandler for Editor {
     ) {
         // If no range is provided, use the current selection or cursor position
         let range = if let Some(range) = range {
-            let start = self.buffer.content.offset_to_position(range.start);
-            let end = self.buffer.content.offset_to_position(range.end);
+            let start = self.buffer.offset_to_position(range.start);
+            let end = self.buffer.offset_to_position(range.end);
 
             start..end
         } else {
@@ -1005,7 +1180,7 @@ impl ViewInputHandler for Editor {
 
         // Handle case where a new headline is being created with ' '
         if let EditLocation::Cursor(cursor) = self.edit_location.clone() {
-            let line = self.buffer.content.line(cursor.position.y);
+            let line = self.buffer.line(cursor.position.y);
 
             if let LineType::HeadlineStart(level) = line.kind {
                 // The reason it's not level + 1 is that:
@@ -1018,8 +1193,8 @@ impl ViewInputHandler for Editor {
             }
         }
 
-        let offset = self.buffer.content.position_to_offset(range.start.clone()) + text.len();
-        let end_position = self.buffer.content.offset_to_position(offset);
+        let offset = self.buffer.position_to_offset(range.start.clone()) + text.len();
+        let end_position = self.buffer.offset_to_position(offset);
 
         self.move_to(end_position.clone(), end_position.x, context);
     }
@@ -1088,7 +1263,7 @@ impl Element for EditorElement {
         context: &mut gpui::WindowContext,
     ) -> (gpui::LayoutId, Self::RequestLayoutState) {
         let input = self.input.read(context);
-        let content = input.buffer.content.clone();
+        let content = input.buffer.content();
         let lines = content.lines();
 
         let style = Style::default();
@@ -1113,7 +1288,7 @@ impl Element for EditorElement {
         context: &mut gpui::WindowContext,
     ) -> Self::PrepaintState {
         let input = self.input.read(context);
-        let content = input.buffer.content.clone();
+        let content = input.buffer.content();
         let style = context.text_style();
         let font_size = style.font_size.to_pixels(context.rem_size());
         let is_focused = input.focus_handle.is_focused(context);
