@@ -70,6 +70,7 @@ actions!(
         Paste,
         // File
         Save,
+        NewFile,
         OpenFile,
     ]
 );
@@ -160,6 +161,7 @@ fn main() {
                 KeyBinding::new("cmd-x", Cut, "editor".into()),
                 KeyBinding::new("cmd-v", Paste, "editor".into()),
                 KeyBinding::new("cmd-s", Save, None),
+                KeyBinding::new("cmd-n", NewFile, None),
                 KeyBinding::new("cmd-o", OpenFile, None),
             ]);
 
@@ -174,6 +176,7 @@ fn main() {
                 Menu {
                     name: "File".into(),
                     items: vec![
+                        MenuItem::action("New", NewFile),
                         MenuItem::action("Save", Save),
                         MenuItem::action("Open...", OpenFile),
                     ],
