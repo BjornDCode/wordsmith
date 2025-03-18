@@ -1,8 +1,14 @@
-use std::{cmp::Ordering, env, ops::Range, path::PathBuf};
+use std::{
+    borrow::Borrow,
+    cmp::Ordering,
+    env,
+    ops::{Index, Range},
+    path::PathBuf,
+};
 
 use gpui::{
-    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, ClipboardItem,
-    ElementInputHandler, FocusHandle, FocusableView, Font, FontWeight, Hsla, PaintQuad,
+    div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, ClipboardItem, Corner,
+    Corners, ElementInputHandler, FocusHandle, FocusableView, Font, FontWeight, Hsla, PaintQuad,
     PathPromptOptions, Pixels, Point, PromptLevel, ScrollHandle, ShapedLine, SharedString, Style,
     TextRun, View, ViewContext, ViewInputHandler,
 };
@@ -1517,6 +1523,7 @@ impl Element for EditorElement {
                 let largest = selection.largest();
 
                 let line_range = smallest.y..largest.y + 1;
+                let mut line_selection_bounds = Vec::new();
 
                 for index in line_range.clone() {
                     let start = if index == line_range.start {
@@ -1530,11 +1537,15 @@ impl Element for EditorElement {
                         CHARACTER_COUNT_PER_LINE as isize
                     };
 
+                    line_selection_bounds.push((index, start, end));
+                }
+
+                for (index, (line_index, start, end)) in line_selection_bounds.iter().enumerate() {
                     let left = bounds.left()
                         + EDITOR_HORIZONTAL_MARGIN
-                        + px(start as f32) * CHARACTER_WIDTH
+                        + px(start.clone() as f32) * CHARACTER_WIDTH
                         - px(1.);
-                    let top = bounds.top() + px(index as f32) * context.line_height();
+                    let top = bounds.top() + px(line_index.clone() as f32) * context.line_height();
                     let width = px((end - start) as f32) * CHARACTER_WIDTH + px(2.);
 
                     let color = if is_focused {
@@ -1543,7 +1554,42 @@ impl Element for EditorElement {
                         rgb(COLOR_GRAY_300)
                     };
                     let bounds = Bounds::new(point(left, top), size(width, context.line_height()));
-                    let rectangle = fill(bounds, color);
+
+                    let previous = if index == 0 {
+                        None
+                    } else {
+                        Some(line_selection_bounds.get(index - 1).unwrap())
+                    };
+                    let next = line_selection_bounds.get(index + 1);
+
+                    let top_left = if previous.is_none() || previous.unwrap().1 > *start {
+                        px(3.)
+                    } else {
+                        px(0.)
+                    };
+                    let top_right = if previous.is_none() || previous.unwrap().2 < *end {
+                        px(3.)
+                    } else {
+                        px(0.)
+                    };
+                    let bottom_left = if next.is_none() || next.unwrap().1 > *start {
+                        px(3.)
+                    } else {
+                        px(0.)
+                    };
+                    let bottom_right = if next.is_none() || next.unwrap().2 < *end {
+                        px(3.)
+                    } else {
+                        px(0.)
+                    };
+
+                    let corners = Corners {
+                        top_left,
+                        top_right,
+                        bottom_left,
+                        bottom_right,
+                    };
+                    let rectangle = fill(bounds, color).corner_radii(corners);
 
                     rectangles.push(rectangle);
                 }
