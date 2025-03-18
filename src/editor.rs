@@ -715,13 +715,16 @@ impl Editor {
                         self.replace_range(range, "".into(), context);
                     }
                     (LineType::Normal, 0) => {
-                        let position =
-                            self.left_position(self.left_position(cursor.position.clone()));
+                        let soft_wrap_position = self.left_position(cursor.position.clone());
+                        let position = self.left_position(soft_wrap_position.clone());
                         let range = position.clone()..cursor.position;
 
                         self.replace_range(range, "".into(), context);
 
-                        self.move_to(position.clone(), position.x, context);
+                        let cursor_offset = self.buffer.position_to_offset(soft_wrap_position);
+                        let new_cursor_position = self.buffer.offset_to_position(cursor_offset);
+
+                        self.move_to(new_cursor_position, position.x, context);
                     }
                     _ => {
                         let position = self.left_position(cursor.position.clone());
