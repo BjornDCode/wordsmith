@@ -62,7 +62,7 @@ impl Buffer {
     }
 
     pub fn is_empty(&self) -> bool {
-        return true;
+        return self.content().text().to_string().is_empty();
     }
 
     pub fn pristine(&self) -> bool {
