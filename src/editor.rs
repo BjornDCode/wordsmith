@@ -1252,8 +1252,15 @@ impl ViewInputHandler for Editor {
             }
         }
 
-        let offset = self.buffer.position_to_offset(range.start.clone()) + text.len();
-        let end_position = self.buffer.offset_to_position(offset);
+        let mut offset = self.buffer.position_to_offset(range.start.clone()) + text.len();
+        let mut end_position = self.buffer.offset_to_position(offset);
+
+        // If the inserts have caused a soft-wrap
+        // then we need to adjust the offset to account for the extra whitespace characters
+        if end_position.y > range.start.y {
+            offset += end_position.y - range.start.y;
+            end_position = self.buffer.offset_to_position(offset);
+        }
 
         self.move_to(end_position.clone(), end_position.x, context);
     }
