@@ -389,6 +389,10 @@ impl Editor {
     }
 
     fn move_left(&mut self, _: &MoveLeft, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.smallest(),
@@ -400,6 +404,10 @@ impl Editor {
     }
 
     fn move_right(&mut self, _: &MoveRight, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.largest(),
@@ -411,6 +419,10 @@ impl Editor {
     }
 
     fn move_up(&mut self, _: &MoveUp, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.smallest(),
@@ -431,6 +443,10 @@ impl Editor {
     }
 
     fn move_down(&mut self, _: &MoveDown, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.largest(),
@@ -450,12 +466,20 @@ impl Editor {
     }
 
     fn move_beginning_of_file(&mut self, _: &MoveBeginningOfFile, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let position = self.beginning_of_file_position();
 
         self.move_to(position.clone(), position.x, context);
     }
 
     fn move_end_of_file(&mut self, _: &MoveEndOfFile, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let position = self.end_of_file_position();
 
         let line = self.buffer.line(position.y);
@@ -464,6 +488,10 @@ impl Editor {
     }
 
     fn move_beginning_of_line(&mut self, _: &MoveBeginningOfLine, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => match selection.direction() {
@@ -477,6 +505,10 @@ impl Editor {
     }
 
     fn move_end_of_line(&mut self, _: &MoveEndOfLine, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => match selection.direction() {
@@ -490,6 +522,10 @@ impl Editor {
     }
 
     fn move_beginning_of_word(&mut self, _: &MoveBeginningOfWord, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.smallest(),
@@ -500,6 +536,10 @@ impl Editor {
     }
 
     fn move_end_of_word(&mut self, _: &MoveEndOfWord, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.largest(),
@@ -510,6 +550,10 @@ impl Editor {
     }
 
     fn select_left(&mut self, _: &SelectLeft, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => self.select(
                 cursor.position.clone(),
@@ -523,6 +567,10 @@ impl Editor {
     }
 
     fn select_right(&mut self, _: &SelectRight, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => self.select(
                 cursor.position.clone(),
@@ -536,6 +584,10 @@ impl Editor {
     }
 
     fn select_up(&mut self, _: &SelectUp, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => {
                 self.select_to(
@@ -558,6 +610,10 @@ impl Editor {
     }
 
     fn select_down(&mut self, _: &SelectDown, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => {
                 self.select_to(
@@ -584,6 +640,10 @@ impl Editor {
         _: &SelectBeginningOfFile,
         context: &mut ViewContext<Self>,
     ) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.start,
@@ -593,6 +653,10 @@ impl Editor {
     }
 
     fn select_end_of_file(&mut self, _: &SelectEndOfFile, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let starting_point = match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.start,
@@ -606,6 +670,10 @@ impl Editor {
         _: &SelectBeginningOfLine,
         context: &mut ViewContext<Self>,
     ) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => self.select(
                 cursor.position.clone(),
@@ -626,6 +694,10 @@ impl Editor {
     }
 
     fn select_end_of_line(&mut self, _: &SelectEndOfLine, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => self.select(
                 cursor.position.clone(),
@@ -650,6 +722,10 @@ impl Editor {
         _: &SelectBeginningOfWord,
         context: &mut ViewContext<Self>,
     ) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => {
                 self.select_to(self.beginning_of_word_position(cursor.position), context);
@@ -668,6 +744,10 @@ impl Editor {
     }
 
     fn select_end_of_word(&mut self, _: &SelectEndOfWord, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         match self.edit_location.clone() {
             EditLocation::Cursor(cursor) => {
                 self.select_to(self.end_of_word_position(cursor.position), context);
@@ -686,6 +766,10 @@ impl Editor {
     }
 
     fn select_all(&mut self, _: &SelectAll, context: &mut ViewContext<Self>) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
         let start = self.beginning_of_file_position();
         let end = self.end_of_file_position();
 

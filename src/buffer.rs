@@ -61,6 +61,10 @@ impl Buffer {
         return self.content.clone();
     }
 
+    pub fn is_empty(&self) -> bool {
+        return true;
+    }
+
     pub fn pristine(&self) -> bool {
         return self.is_saved;
     }
