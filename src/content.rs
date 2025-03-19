@@ -116,6 +116,11 @@ impl Content {
             lines.push(Line { text: raw, kind })
         }
 
+        lines.push(Line {
+            text: "".into(),
+            kind: LineType::Normal,
+        });
+
         return lines;
     }
 
