@@ -22,12 +22,12 @@ use crate::{
 };
 
 const CHARACTER_WIDTH: Pixels = px(10.24);
-const LINE_HEIGHT: Pixels = px(24.);
-pub const CHARACTER_COUNT_PER_LINE: usize = 50;
+const LINE_HEIGHT: Pixels = px(28.);
+pub const CHARACTER_COUNT_PER_LINE: usize = 60;
 const EDITOR_HORIZONTAL_MARGIN: Pixels = px(71.68); // 7 (6 headline markers + 1 space) * CHARACTERWIDTH;
 const EDITOR_VERTICAL_MARGIN: Pixels = px(32.);
 const EDITOR_BASE_WIDTH: Pixels = px(512.);
-pub const CONTAINER_WIDTH: Pixels = px(655.36); // Base width + Margin * 2
+pub const CONTAINER_WIDTH: Pixels = px(757.76); // Base width + Margin * 2
 
 pub struct Editor {
     buffer: Buffer,
