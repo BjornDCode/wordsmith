@@ -1,10 +1,4 @@
-use std::{
-    borrow::Borrow,
-    cmp::Ordering,
-    env,
-    ops::{Index, Range},
-    path::PathBuf,
-};
+use std::{env, ops::Range, path::PathBuf};
 
 use gpui::{
     div, fill, point, prelude::*, px, rgb, size, AppContext, Bounds, ClipboardItem, Corner,
@@ -16,6 +10,7 @@ use gpui::{
 use crate::{
     buffer::Buffer,
     content::{Content, Line, LineType},
+    cursor::{Cursor, EditLocation, EditorPosition, Selection, SelectionDirection},
     text::WrappedText,
     Backspace, Copy, Cut, Enter, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord,
     MoveDown, MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, NewFile,
@@ -36,139 +31,14 @@ pub const CONTAINER_WIDTH: Pixels = px(655.36); // Base width + Margin * 2
 
 pub struct Editor {
     buffer: Buffer,
-    edit_location: EditLocation,
     focus_handle: FocusHandle,
     scroll_handle: ScrollHandle,
 }
 
-#[derive(Debug, Clone)]
-enum EditLocation {
-    Cursor(Cursor),
-    Selection(Selection),
-}
-
-#[derive(Debug, Clone)]
-pub struct EditorPosition {
-    pub x: isize,
-    pub y: usize,
-}
-
-impl EditorPosition {
-    pub fn new(y: usize, x: isize) -> EditorPosition {
-        return EditorPosition { x, y };
-    }
-}
-
-impl PartialEq for EditorPosition {
-    fn eq(&self, other: &Self) -> bool {
-        return self.x == other.x && self.y == other.y;
-    }
-}
-
-impl Eq for EditorPosition {}
-
-impl Ord for EditorPosition {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialOrd for EditorPosition {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.y == other.y {
-            if self.x < other.x {
-                return Some(Ordering::Less);
-            }
-
-            if self.x > other.x {
-                return Some(Ordering::Greater);
-            }
-
-            return Some(Ordering::Equal);
-        }
-
-        if self.y < other.y {
-            return Some(Ordering::Less);
-        }
-
-        if self.y > other.y {
-            return Some(Ordering::Greater);
-        }
-
-        return Some(Ordering::Equal);
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Cursor {
-    position: EditorPosition,
-    preferred_x: isize,
-}
-
-impl Cursor {
-    pub fn new(y: usize, x: isize, preferred_x: isize) -> Cursor {
-        return Cursor {
-            position: EditorPosition::new(y, x),
-            preferred_x,
-        };
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Selection {
-    start: EditorPosition,
-    end: EditorPosition,
-}
-
-impl Selection {
-    pub fn new(start: EditorPosition, end: EditorPosition) -> Selection {
-        return Selection { start, end };
-    }
-}
-
-impl Selection {
-    pub fn direction(&self) -> SelectionDirection {
-        if self.end < self.start {
-            SelectionDirection::Backwards
-        } else {
-            SelectionDirection::Forwards
-        }
-    }
-
-    pub fn smallest(&self) -> EditorPosition {
-        if self.start < self.end {
-            return self.start.clone();
-        } else {
-            return self.end.clone();
-        }
-    }
-
-    pub fn largest(&self) -> EditorPosition {
-        if self.start > self.end {
-            return self.start.clone();
-        } else {
-            return self.end.clone();
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum SelectionDirection {
-    Backwards,
-    Forwards,
-}
-
 impl Editor {
     pub fn new(buffer: Buffer, focus_handle: FocusHandle) -> Editor {
-        let edit_location = EditLocation::Cursor(Cursor::new(0, 0, 0));
-        // let edit_location = EditLocation::Selection(Selection::new(
-        //     EditorPosition::new(4, 4),
-        //     EditorPosition::new(4, 8),
-        // ));
-
         return Editor {
             buffer,
-            edit_location,
             focus_handle,
             scroll_handle: ScrollHandle::new(),
         };
@@ -399,7 +269,7 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.smallest(),
         };
@@ -414,7 +284,7 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.largest(),
         };
@@ -429,18 +299,18 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.smallest(),
         };
-        let preferred_x = match self.edit_location.clone() {
+        let preferred_x = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.preferred_x,
             EditLocation::Selection(selection) => selection.smallest().x,
         };
 
         let position = self.up_position(starting_point.clone(), preferred_x);
 
-        let preferred_x = match self.edit_location.clone() {
+        let preferred_x = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.preferred_x,
             EditLocation::Selection(_selection) => position.x,
         };
@@ -453,17 +323,17 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.largest(),
         };
-        let preferred_x = match self.edit_location.clone() {
+        let preferred_x = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.preferred_x,
             EditLocation::Selection(selection) => selection.largest().x,
         };
 
         let position = self.down_position(starting_point.clone(), preferred_x);
-        let preferred_x = match self.edit_location.clone() {
+        let preferred_x = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.preferred_x,
             EditLocation::Selection(_selection) => position.x,
         };
@@ -498,7 +368,7 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => match selection.direction() {
                 SelectionDirection::Backwards => selection.smallest(),
@@ -515,7 +385,7 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => match selection.direction() {
                 SelectionDirection::Backwards => selection.smallest(),
@@ -532,7 +402,7 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.smallest(),
         };
@@ -546,7 +416,7 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.largest(),
         };
@@ -560,7 +430,7 @@ impl Editor {
             return;
         }
 
-        match self.edit_location.clone() {
+        match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => self.select(
                 cursor.position.clone(),
                 self.left_position(cursor.position),
@@ -577,7 +447,7 @@ impl Editor {
             return;
         }
 
-        match self.edit_location.clone() {
+        match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => self.select(
                 cursor.position.clone(),
                 self.right_position(cursor.position),
@@ -594,7 +464,7 @@ impl Editor {
             return;
         }
 
-        match self.edit_location.clone() {
+        match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => {
                 self.select_to(
                     self.up_position(cursor.position.clone(), cursor.position.x),
@@ -620,7 +490,7 @@ impl Editor {
             return;
         }
 
-        match self.edit_location.clone() {
+        match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => {
                 self.select_to(
                     self.down_position(cursor.position.clone(), cursor.position.x),
@@ -650,7 +520,7 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.start,
         };
@@ -663,7 +533,7 @@ impl Editor {
             return;
         }
 
-        let starting_point = match self.edit_location.clone() {
+        let starting_point = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.start,
         };
@@ -680,7 +550,7 @@ impl Editor {
             return;
         }
 
-        match self.edit_location.clone() {
+        match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => self.select(
                 cursor.position.clone(),
                 self.beginning_of_line_position(cursor.position),
@@ -704,7 +574,7 @@ impl Editor {
             return;
         }
 
-        match self.edit_location.clone() {
+        match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => self.select(
                 cursor.position.clone(),
                 self.end_of_line_position(cursor.position),
@@ -732,7 +602,7 @@ impl Editor {
             return;
         }
 
-        match self.edit_location.clone() {
+        match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => {
                 self.select_to(self.beginning_of_word_position(cursor.position), context);
             }
@@ -754,7 +624,7 @@ impl Editor {
             return;
         }
 
-        match self.edit_location.clone() {
+        match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => {
                 self.select_to(self.end_of_word_position(cursor.position), context);
             }
@@ -783,13 +653,13 @@ impl Editor {
     }
 
     fn remove_selection(&mut self, _: &RemoveSelection, context: &mut ViewContext<Self>) {
-        if let EditLocation::Selection(selection) = self.edit_location.clone() {
+        if let EditLocation::Selection(selection) = self.buffer.edit_location() {
             self.move_to(selection.start.clone(), selection.start.x, context);
         }
     }
 
     fn backspace(&mut self, _: &Backspace, context: &mut ViewContext<Self>) {
-        match self.edit_location.clone() {
+        match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => {
                 if cursor.position == self.beginning_of_file_position() {
                     return;
@@ -841,7 +711,7 @@ impl Editor {
     }
 
     fn enter(&mut self, _: &Enter, context: &mut ViewContext<Self>) {
-        let range = match self.edit_location.clone() {
+        let range = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position.clone()..cursor.position,
             EditLocation::Selection(selection) => selection.smallest()..selection.largest(),
         };
@@ -888,7 +758,7 @@ impl Editor {
     }
 
     fn copy(&mut self, _: &Copy, context: &mut ViewContext<Self>) {
-        if let EditLocation::Selection(selection) = self.edit_location.clone() {
+        if let EditLocation::Selection(selection) = self.buffer.edit_location() {
             let range = selection.smallest()..selection.largest();
 
             let text = self.read_range(range.clone());
@@ -898,7 +768,7 @@ impl Editor {
     }
 
     fn cut(&mut self, _: &Cut, context: &mut ViewContext<Self>) {
-        if let EditLocation::Selection(selection) = self.edit_location.clone() {
+        if let EditLocation::Selection(selection) = self.buffer.edit_location() {
             let range = selection.smallest()..selection.largest();
 
             let text = self.read_range(range.clone());
@@ -913,7 +783,7 @@ impl Editor {
         let clipboard_item = context
             .read_from_clipboard()
             .unwrap_or(ClipboardItem::new_string("".into()));
-        let range = match self.edit_location.clone() {
+        let range = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position.clone()..cursor.position,
             EditLocation::Selection(selection) => selection.smallest()..selection.largest(),
         };
@@ -940,10 +810,10 @@ impl Editor {
         preferred_x: isize,
         context: &mut ViewContext<Self>,
     ) {
-        self.edit_location = EditLocation::Cursor(Cursor {
+        self.buffer.set_location(EditLocation::Cursor(Cursor {
             position: position.clone(),
             preferred_x,
-        });
+        }));
 
         self.ensure_in_viewport(position);
 
@@ -987,14 +857,15 @@ impl Editor {
         if start == end {
             self.move_to(start.clone(), start.x, context);
         } else {
-            self.edit_location = EditLocation::Selection(Selection::new(start, end));
+            self.buffer
+                .set_location(EditLocation::Selection(Selection::new(start, end)));
         }
 
         context.notify();
     }
 
     fn select_to(&mut self, end: EditorPosition, context: &mut ViewContext<Self>) {
-        let start = match self.edit_location.clone() {
+        let start = match self.buffer.edit_location() {
             EditLocation::Cursor(cursor) => cursor.position,
             EditLocation::Selection(selection) => selection.start,
         };
@@ -1319,7 +1190,7 @@ impl ViewInputHandler for Editor {
 
             start..end
         } else {
-            match &self.edit_location {
+            match self.buffer.edit_location() {
                 EditLocation::Cursor(cursor) => cursor.position.clone()..cursor.position.clone(),
                 EditLocation::Selection(selection) => selection.smallest()..selection.largest(),
             }
@@ -1328,7 +1199,7 @@ impl ViewInputHandler for Editor {
         self.replace_range(range.clone(), text.to_string(), context);
 
         // Handle case where a new headline is being created with ' '
-        if let EditLocation::Cursor(cursor) = self.edit_location.clone() {
+        if let EditLocation::Cursor(cursor) = self.buffer.edit_location() {
             let line = self.buffer.line(cursor.position.y);
 
             if let LineType::HeadlineStart(level) = line.kind {
@@ -1495,7 +1366,7 @@ impl Element for EditorElement {
             lines.push(RenderedLine::new(line.clone(), shaped_line));
         }
 
-        let edit_location_rectangles = match input.edit_location.clone() {
+        let edit_location_rectangles = match input.buffer.edit_location() {
             EditLocation::Cursor(cursor) => {
                 let left = bounds.left()
                     + EDITOR_HORIZONTAL_MARGIN

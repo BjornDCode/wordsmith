@@ -7,10 +7,11 @@ use std::{
 };
 
 use crate::content::{Content, Line};
-use crate::editor::EditorPosition;
+use crate::cursor::{Cursor, EditLocation, EditorPosition};
 
 pub struct Buffer {
     content: Content,
+    edit_location: EditLocation,
     file: Option<File>,
     is_saved: bool,
 }
@@ -21,6 +22,7 @@ impl Buffer {
             content: Content::empty(),
             file: None,
             is_saved: true,
+            edit_location: EditLocation::Cursor(Cursor::new(0, 0, 0)),
         };
     }
 
@@ -37,6 +39,7 @@ impl Buffer {
             file: Some(file),
             content: Content::new(contents.into()),
             is_saved: true,
+            edit_location: EditLocation::Cursor(Cursor::new(0, 0, 0)),
         };
     }
 
@@ -61,12 +64,20 @@ impl Buffer {
         return self.content.clone();
     }
 
+    pub fn edit_location(&self) -> EditLocation {
+        return self.edit_location.clone();
+    }
+
     pub fn is_empty(&self) -> bool {
         return self.content().text().to_string().is_empty();
     }
 
     pub fn pristine(&self) -> bool {
         return self.is_saved;
+    }
+
+    pub fn set_location(&mut self, location: EditLocation) {
+        self.edit_location = location;
     }
 
     pub fn has_file(&self) -> bool {

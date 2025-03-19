@@ -1,5 +1,6 @@
 mod buffer;
 mod content;
+mod cursor;
 mod editor;
 mod text;
 

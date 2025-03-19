@@ -2,7 +2,7 @@ use std::ops::{Index, Range};
 
 use gpui::SharedString;
 
-use crate::{editor::EditorPosition, text::WrappedText};
+use crate::{cursor::EditorPosition, text::WrappedText};
 
 #[derive(Debug, Clone)]
 pub enum LineType {
