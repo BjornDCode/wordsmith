@@ -124,6 +124,10 @@ impl Content {
         return lines;
     }
 
+    pub fn wrap_points(&self) -> Vec<usize> {
+        return self.wrapped.wrap_points();
+    }
+
     pub fn replace(&mut self, range: Range<usize>, replacement: String) {
         self.wrapped.replace(range, replacement);
         self.original = self.wrapped.original().to_string().into();

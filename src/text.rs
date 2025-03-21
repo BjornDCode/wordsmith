@@ -170,6 +170,12 @@ impl WrappedText {
         return Some(cursor);
     }
 
+    pub fn wrap_points(&self) -> Vec<usize> {
+        let (_, wrap_points) = self.to_string_with_wrap_points();
+
+        return wrap_points;
+    }
+
     fn to_string_with_wrap_points(&self) -> (String, Vec<usize>) {
         let content = self.text.to_string();
 

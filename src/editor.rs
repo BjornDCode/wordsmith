@@ -10,7 +10,7 @@ use gpui::{
 use crate::{
     buffer::Buffer,
     content::{Content, Line, LineType},
-    cursor::{Cursor, EditLocation, EditorPosition, Selection, SelectionDirection},
+    cursor::{self, Cursor, EditLocation, EditorPosition, Selection, SelectionDirection},
     text::WrappedText,
     Backspace, Copy, Cut, Enter, MoveBeginningOfFile, MoveBeginningOfLine, MoveBeginningOfWord,
     MoveDown, MoveEndOfFile, MoveEndOfLine, MoveEndOfWord, MoveLeft, MoveRight, MoveUp, NewFile,
@@ -675,13 +675,24 @@ impl Editor {
                         self.replace_range(range, "".into(), context);
                     }
                     (LineType::Normal, 0) => {
-                        let soft_wrap_position = self.left_position(cursor.position.clone());
-                        let position = self.left_position(soft_wrap_position.clone());
+                        let current_cursor_offset =
+                            self.buffer.position_to_offset(cursor.position.clone());
+                        let wrap_points = self.buffer.content().wrap_points();
+
+                        let mut position = self.left_position(cursor.position.clone());
+
+                        // Note: It's important we get the cursor offset here
+                        // Before subtracting the soft-wrap point
+                        let cursor_offset = self.buffer.position_to_offset(position.clone());
+
+                        if wrap_points.contains(&current_cursor_offset) {
+                            position = self.left_position(position);
+                        }
+
                         let range = position.clone()..cursor.position;
 
                         self.replace_range(range, "".into(), context);
 
-                        let cursor_offset = self.buffer.position_to_offset(soft_wrap_position);
                         let new_cursor_position = self.buffer.offset_to_position(cursor_offset);
 
                         self.move_to(new_cursor_position, position.x, context);
